@@ -8,7 +8,7 @@
 import fs from "node:fs";
 import { CASES } from "../core/cases.js";
 import { RUNNERS } from "../core/pipeline.js";
-import { scoreCase, aggregate } from "../core/scorer.js";
+import { scoreCase, aggregate, errorScore } from "../core/scorer.js";
 import { makeLLM, PendingError } from "../core/providers.js";
 
 const args = Object.fromEntries(
@@ -32,7 +32,7 @@ async function runAll(llm, { collectPending = false, concurrency = 4 } = {}) {
         process.stderr.write(`✓ ${c.id} ${m} ${r.decisions.join("+")}\n`);
       } catch (e) {
         if (collectPending && e instanceof PendingError) pending.push(e.call);
-        else { results.push({ mode: m, caseId: c.id, error: String(e.message || e), decisions: [], reply: "", trace: [] }); process.stderr.write(`✗ ${c.id} ${m} ${e.message}\n`); }
+        else { results.push({ mode: m, caseId: c.id, error: String(e.message || e), decisions: [], reply: "", trace: [], score: errorScore(c.id, e.message || e) }); process.stderr.write(`✗ ${c.id} ${m} ${e.message}\n`); }
       }
     }
   }

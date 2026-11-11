@@ -76,3 +76,8 @@ export function aggregate(cases, scored) {
     byCategory: Object.fromEntries(Object.entries(cats).map(([k, v]) => [k, v.reduce((a, b) => a + b, 0) / v.length])),
   };
 }
+
+// 输出无法解析（格式错误）时按 0 分计入汇总，而不是从分母里剔除
+export function errorScore(caseId, message) {
+  return { caseId, checks: [{ key: "decision", label: "输出可解析为 JSON", pass: false, value: 0, detail: String(message || "") }], score: 0, pass: false, violations: 0 };
+}

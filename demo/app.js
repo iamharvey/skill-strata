@@ -1,6 +1,6 @@
 import { CASES } from "./core/cases.js";
 import { RUNNERS } from "./core/pipeline.js";
-import { scoreCase, aggregate } from "./core/scorer.js";
+import { scoreCase, aggregate, errorScore } from "./core/scorer.js";
 import { makeLLM } from "./core/providers.js";
 
 const $ = (s) => document.querySelector(s);
@@ -13,7 +13,7 @@ const state = { runs: [], cur: -1, provider: "openai", cfg: {}, cat: "全部", r
 
 // ---------- 结果集 ----------
 function buildRun(meta, results) {
-  const rescored = results.map((r) => (r.error ? r : { ...r, score: scoreCase(CASES.find((c) => c.id === r.caseId), r) }));
+  const rescored = results.map((r) => (r.error ? { ...r, score: errorScore(r.caseId, r.error) } : { ...r, score: scoreCase(CASES.find((c) => c.id === r.caseId), r) }));
   const summary = {};
   for (const m of Object.keys(MODES)) {
     const s = rescored.filter((r) => r.mode === m && r.score).map((r) => r.score);
@@ -233,14 +233,17 @@ document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#dra
 $("#exportBtn").addEventListener("click", exportRun);
 $("#importInput").addEventListener("change", (e) => { if (e.target.files[0]) importRun(e.target.files[0]); e.target.value = ""; });
 
-// ---------- 启动：载入内置的 Perplexity Agent 运行结果 ----------
+// ---------- 启动：载入内置运行结果 ----------
 renderFields();
 renderRunSelect();
 render();
-try {
-  const preset = (await import("./runs/perplexity-agent.js")).default;
-  state.runs.unshift(buildRun(preset.meta, preset.results));
-  state.cur = 0;
-  renderRunSelect();
-  render();
-} catch { /* 没有内置结果时忽略 */ }
+// 内置结果：第一个为默认展示
+for (const f of ["claude_haiku_5_5.js", "gpt5_nano.js", "perplexity-agent.js"]) {
+  try {
+    const preset = (await import(`./runs/${f}`)).default;
+    state.runs.unshift(buildRun(preset.meta, preset.results));
+  } catch { /* 没有该结果文件时忽略 */ }
+}
+state.cur = 0;
+renderRunSelect();
+render();
