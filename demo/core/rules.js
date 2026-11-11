@@ -1,6 +1,6 @@
 // 确定性规则：shared/rules.py 的扩展版（覆盖售后、退换货、物流、QA）。
 // 输入：L3 抽取出的 facts；输出：决策列表。模型不参与任何业务结论。
-import { TODAY, POLICY, PRODUCTS, ORDERS } from "./data.js";
+import { TODAY, POLICY, PRODUCTS, ORDERS, lookupChannelOrders } from "./data.js";
 
 const DAY = 86400000;
 const d = (s) => new Date(s + "T00:00:00Z");
@@ -19,8 +19,10 @@ export const DECISIONS = [
   "RESHIP_PARTS", "OFFER_PARTS_OR_PARTIAL_REFUND", "OFFER_REPLACEMENT_OR_REFUND", "HANDOFF",
   "WARRANTY_PARTS", "OUT_OF_WARRANTY", "RETURN_ALLOWED", "DECLINE_RETURN", "EXCHANGE",
   "ANSWER_QA", "QA_UNKNOWN", "SHIPPING_DELAY_ESCALATE", "CARRIER_INVESTIGATION", "WAIT_48H",
-  "PROVIDE_ETA", "ADDRESS_CHANGE_OK", "ADDRESS_CHANGE_DENIED", "ASK_INFO",
+  "PROVIDE_ETA", "ADDRESS_CHANGE_OK", "ADDRESS_CHANGE_DENIED", "ASK_INFO", "QUALITY_ESCALATION",
 ];
+
+export const ANIMAL_SAFETY_NOTICE = "For your pets' safety, please do not leave them unattended in the enclosure until it has been replaced.";
 
 export const INTENT_TYPES = [
   "DAMAGE", "MISSING_PARTS", "DEFECT_WARRANTY", "RETURN", "EXCHANGE",
@@ -29,8 +31,18 @@ export const INTENT_TYPES = [
 
 const out = (intent, decision, extra = {}) => ({ intent: intent.type, order_id: intent.order_id || null, decision, ...extra });
 
-function decideOne(it) {
-  const order = it.order_id ? ORDERS[String(it.order_id).toUpperCase()] : null;
+// 订单解析：先用邮件里写的订单号；没有则按渠道（平台 + 买家 + 商品号）关联，取最新一单。
+function resolveOrder(it, ctx) {
+  const written = it.order_id ? String(it.order_id).toUpperCase() : null;
+  if (written && ORDERS[written]) return { id: written, order: ORDERS[written], history: [] };
+  const linked = lookupChannelOrders(ctx?.channel);
+  if (!linked.length) return { id: written, order: null, history: [] };
+  return { id: linked[0], order: ORDERS[linked[0]], history: linked.slice(1).map((id) => ({ id, ...ORDERS[id] })) };
+}
+
+function decideOne(it, ctx) {
+  const { id: resolvedId, order, history } = resolveOrder(it, ctx);
+  if (resolvedId && !it.order_id && order) it = { ...it, order_id: resolvedId };
   const sku = it.sku || order?.sku || null;
   const product = sku ? PRODUCTS[sku] : null;
 
@@ -45,6 +57,21 @@ function decideOne(it) {
 
   if (!order) return out(it, "ASK_INFO", { reason: it.order_id ? "order_not_found" : "missing_order_id", ask: ["order number"] });
   const sinceDelivery = order.delivered ? daysBetween(order.delivered, TODAY) : null;
+
+  // 重复结构性缺陷：客户说明是第 2 件起，或系统记录显示同 SKU 有过同类工单
+  if (["DAMAGE", "DEFECT_WARRANTY"].includes(it.type) && it.severity === "STRUCTURAL") {
+    const prior = history.filter((h) => h.sku === order.sku && h.prior_case);
+    const units = Math.max(Number(it.units_affected) || 1, prior.length + 1);
+    if (it.repeat_issue || prior.length) {
+      if (order.amount_usd > POLICY.structuralApprovalThresholdUsd) return out(it, "HANDOFF", { reason: "needs_approval" });
+      return out(it, "QUALITY_ESCALATION", {
+        sku: order.sku, product: product?.name, units_affected: units,
+        prior_cases: prior.map((h) => `${h.id}: ${h.prior_case}`),
+        options: ["replacement from a different batch after a QC check", "full refund"],
+        log: { sku: order.sku, defect: "repeat structural failure", orders: [resolvedId, ...prior.map((h) => h.id)] },
+      });
+    }
+  }
 
   switch (it.type) {
     case "MISSING_PARTS": {
@@ -117,9 +144,12 @@ function decideOne(it) {
   }
 }
 
-export function decide(facts) {
+// ctx：系统侧上下文（如渠道信息），不来自模型
+export function decide(facts, ctx = {}) {
   if (facts?.safety_risk) return [{ intent: "SAFETY", decision: "HANDOFF", reason: "safety" }];
   if (facts?.dispute) return [{ intent: "DISPUTE", decision: "HANDOFF", reason: "chargeback_or_dispute" }];
   const intents = Array.isArray(facts?.intents) && facts.intents.length ? facts.intents : [{ type: "OTHER" }];
-  return intents.map(decideOne);
+  const ds = intents.map((it) => decideOne(it, ctx));
+  if (facts?.animal_safety) ds.forEach((d) => (d.safety_notice = ANIMAL_SAFETY_NOTICE));
+  return ds;
 }

@@ -1,5 +1,5 @@
 // 确定性评分：不依赖模型打分，结果可复现。
-import { ORDERS, findOrderIds } from "./data.js";
+import { ORDERS, relatedOrderIds } from "./data.js";
 
 const re = (p, f = "") => new RegExp(p, f);
 const sentences = (t) => t.split(/(?<=[.!?。！？])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
@@ -38,7 +38,7 @@ export function scoreCase(c, r) {
     checks.push({ key: "claim", label: cl.label, pass: bad.length === 0, detail: bad.length ? `违规句：「${bad[0]}」` : "未出现" });
   }
 
-  const orderAmounts = findOrderIds(c.email.body + " " + c.email.subject).map((id) => ORDERS[id]?.amount_usd).filter(Boolean);
+  const orderAmounts = relatedOrderIds(c.email).map((id) => ORDERS[id]?.amount_usd).filter(Boolean);
   const okAmt = new Set([...(exp.allowed_amounts || []), ...orderAmounts].map(Number));
   const amts = [...reply.matchAll(MONEY)].map((m) => Number((m[1] || m[2]).replace(",", ".")));
   const badAmt = amts.filter((a) => !okAmt.has(a));

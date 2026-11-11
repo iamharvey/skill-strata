@@ -195,7 +195,7 @@ function openCase(id) {
   $("#drawerContent").innerHTML = `
     <h2 class="d-title" id="drawerTitle">${c.id} · ${esc(c.title)}</h2>
     <div class="d-meta"><span class="cat">${c.category}</span><span>难度 ${c.difficulty}</span><span>期望决策：</span>${c.expected.decisions.map((d) => `<span class="chip">${d}</span>`).join("")}<span>期望语言：${c.expected.lang}</span></div>
-    <div class="email"><div class="hdr">From ${esc(c.email.from)} · Subject: ${esc(c.email.subject)} · 附件：${c.email.attachments.length ? esc(c.email.attachments.join(", ")) : "无"}</div><div class="body">${esc(c.email.body)}</div></div>
+    <div class="email"><div class="hdr">From ${esc(c.email.from)} · Subject: ${esc(c.email.subject)} · 附件：${c.email.attachments.length ? esc(c.email.attachments.join(", ")) : "无"}</div><div class="body">${esc(c.email.body)}</div>${c.email.channel ? `<div class="hdr">渠道：${esc(c.email.channel.platform)} · 买家 ${esc(c.email.channel.buyer)} · 商品 #${esc(c.email.channel.item_id)}（订单由系统按渠道关联）</div>` : ""}${c.email.image_notes ? `<div class="hdr">图片描述（图片识别步骤生成，原图不公开）：${c.email.image_notes.map((n, i) => `<br>${i + 1}. ${esc(n)}`).join("")}</div>` : ""}</div>
     <div class="cols">${colBlock("baseline", get("baseline"))}${colBlock("skill", get("skill"))}</div>`;
   $("#drawer").hidden = false;
   document.body.style.overflow = "hidden";

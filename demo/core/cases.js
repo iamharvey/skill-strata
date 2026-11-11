@@ -1,4 +1,4 @@
-// 20 个客服邮件基线用例（示意数据）。
+// 21 个客服邮件用例：C01–C20 为示意数据；C21 来自真实工单（已匿名化）。
 // expected.decisions：期望的决策集合（与顺序无关）
 // expected.lang：期望回复语言
 // expected.allowed_amounts / allowed_pct：回复中允许出现的金额与百分比（订单金额自动允许）
@@ -255,6 +255,34 @@ export const CASES = [
         { pattern: "water-?resistant", flags: "i", label: "说明是防泼水而非防水" },
       ],
       claims: [{ pattern: "\\bwaterproof\\b", flags: "i", unless: NEG, label: "不得说顶棚防水" }],
+    },
+  },
+  {
+    id: "C21", category: "售后", title: "真实工单（匿名）：第 2 个兔笼网片焊点断裂，eBay 渠道", difficulty: "难", source: "real",
+    email: {
+      from: "buyer-7f3a (eBay)",
+      channel: { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001" },
+      subject: "buyer-7f3a sent a message about Wooden Rabbit Hutch Bunny Cage Outdoor Small Animal House w/ Hinged Top #360000000001 (SKU D51-105V01)",
+      body: "2nd cage thats gone think you need to use better mesh not cheap stuff, the 2nd photo with purple tube in is the 1st cage I completed about.",
+      attachments: ["photo_1.jpg", "photo_2.jpg"],
+      // 原图不公开；以下为图片识别步骤给出的描述，两种模式看到的内容相同
+      image_notes: [
+        "Front welded-wire mesh door of a wooden hutch. A horizontal wire has broken free from its welds and hangs loose across the panel. A ferret is inside.",
+        "Front mesh door of a second, identical hutch with a purple tunnel inside. Several vertical wires on the left side have come away from the welds and are bent. A ferret is inside.",
+      ],
+    },
+    expected: {
+      decisions: ["QUALITY_ESCALATION"], lang: "en", allowed_pct: [],
+      must_include: [
+        { pattern: "second|2nd|again|both|repeat|two (cages|hutches|units)", flags: "i", label: "承认是重复问题" },
+        { pattern: "replac", flags: "i", label: "给出更换选项" },
+        { pattern: "full refund", flags: "i", label: "给出全额退款选项" },
+        { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
+      ],
+      claims: [
+        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)|keep it and", flags: "i", unless: NEG, label: "不得要求客户自行修理" },
+        { pattern: "order (number|no\\.?|id)|item number", flags: "i", unless: NEG + "|EB-\\d+|we('ve| have) (found|located)|on file|linked", label: "不得索要已有的订单号" },
+      ],
     },
   },
 ];

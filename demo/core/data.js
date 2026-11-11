@@ -112,6 +112,19 @@ export const PRODUCTS = {
       WARRANTY: "12 months from delivery date.",
     },
   },
+  "D51-105V01": {
+    name: "Wooden Rabbit Hutch with Hinged Top",
+    oversize: false,
+    variants: { natural: 25 },
+    parts: {},
+    spec: {
+      DIMENSIONS: "91.5 x 45 x 70 cm; package weight 13 kg.",
+      MATERIAL: "Fir wood frame; galvanized welded wire mesh front panel.",
+      WEATHER: "Outdoor use with waterproof asphalt roof; treat wood yearly.",
+      CERTIFICATION: null,
+      WARRANTY: "12 months from delivery date.",
+    },
+  },
 };
 
 // status: processing | in_transit | delivered
@@ -130,14 +143,37 @@ export const ORDERS = {
   "AS-10201": { sku: "GB-03", amount_usd: 89, order_date: "2026-11-02", status: "delivered", delivered: "2026-11-08", carrier: "UPS", country: "US" },
   "AS-10240": { sku: "GB-03", amount_usd: 95, order_date: "2026-11-03", status: "in_transit", carrier: "UPS", eta: "2026-11-12", last_scan: "2026-11-08 Columbus OH", country: "US" },
   "AS-10230": { sku: "SW-01", amount_usd: 279, order_date: "2026-10-28", status: "delivered", delivered: "2026-11-06", country: "US" },
+  // 平台订单（eBay）：由系统按 平台 + 买家 + 商品号 从消息线程关联，不需要客户提供
+  "EB-58201": { sku: "D51-105V01", amount_usd: 86, order_date: "2026-09-12", status: "delivered", delivered: "2026-09-17", country: "UK", channel: "ebay", prior_case: "TK-UK-20260929-000731 (mesh weld failure)" },
+  "EB-61377": { sku: "D51-105V01", amount_usd: 86, order_date: "2026-10-09", status: "delivered", delivered: "2026-10-14", country: "UK", channel: "ebay" },
 };
+
+// 平台消息线程 → 订单。实际系统通过平台 API 完成，这里用表模拟。
+export const MARKETPLACE_ORDERS = [
+  { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001", order_id: "EB-58201" },
+  { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001", order_id: "EB-61377" },
+];
+
+// 按渠道信息查订单（确定性，不经过模型）。返回该买家在该商品下的全部订单，最新在前。
+export function lookupChannelOrders(channel) {
+  if (!channel?.platform) return [];
+  return MARKETPLACE_ORDERS
+    .filter((m) => m.platform === channel.platform && m.buyer === channel.buyer && (!channel.item_id || m.item_id === channel.item_id))
+    .map((m) => m.order_id)
+    .sort((a, b) => (ORDERS[b].order_date > ORDERS[a].order_date ? 1 : -1));
+}
+
+// 两种模式共用：邮件中写明的订单号 + 渠道关联到的订单号
+export function relatedOrderIds(email) {
+  return [...new Set([...findOrderIds(email.body + " " + email.subject), ...lookupChannelOrders(email.channel)])];
+}
 
 export function findOrderIds(text) {
   return [...new Set((text.match(/AS-\d{5}/gi) || []).map((s) => s.toUpperCase()))];
 }
 
 export const POLICY_TEXT = `After-sales policy (demo, version ${POLICY.version})
-1. Always need an order number for order-related requests. Damage claims need at least one photo; missing parts need the part code from the manual.
+1. Always need an order number for order-related requests. For marketplace messages (eBay, Amazon), the order is linked from the message thread and listed under "Order records"; never ask the customer for an order number that is already listed. Damage claims need at least one photo; missing parts need the part code from the manual.
 2. Damage or missing parts reported more than 30 days after delivery: do not resolve automatically, hand off to a specialist.
 3. Missing parts in stock: reship the parts. Out of stock: hand off.
 4. Cosmetic damage (scratches, dents, not affecting use): customer may choose replacement part or a 15% partial refund. No other percentage.
@@ -151,4 +187,6 @@ export const POLICY_TEXT = `After-sales policy (demo, version ${POLICY.version})
 12. Marked delivered but not received: if less than 2 days since the delivery scan, ask the customer to check around the property and with neighbours and wait 48 hours; otherwise hand off to open a lost-package case.
 13. Address changes only while the order is still processing (not shipped).
 14. Product questions: answer only from the product specification. If the spec does not cover it, say you will confirm with the product team. Never guess.
-15. Never promise refund amounts, percentages, dates or timeframes not given by the system. Reply in the customer's language, professional and calm; confirm the issue first, then the solution.`;
+15. Never promise refund amounts, percentages, dates or timeframes not given by the system. Reply in the customer's language, professional and calm; confirm the issue first, then the solution.
+16. Repeat structural defect: if the customer reports the same structural failure on a second (or later) unit of the same product, or order records show a prior case for the same defect on that product, do not offer parts or partial refunds. Escalate to the quality team (log the defect against the SKU) and offer the customer a replacement from a different batch after a QC check, or a full refund. If the order amount > 300 USD, hand off for approval instead. Never ask the customer to repair or source a repair themselves.
+17. Animal enclosures (hutches, cages, crates, coops): if the enclosure is damaged so animals could escape or get hurt, include this safety advice: "For your pets' safety, please do not leave them unattended in the enclosure until it has been replaced." If an animal has actually been injured, treat it as a safety case (rule 6).`;

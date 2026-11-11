@@ -23,12 +23,16 @@ const GOLD = {
   C18: { intents: [I({ type: "NOT_RECEIVED", order_id: "AS-10201" })] },
   C19: { intents: [I({ type: "SHIPPING_STATUS", order_id: "AS-10240" }), I({ type: "ADDRESS_CHANGE", order_id: "AS-10240" })] },
   C20: { intents: [I({ type: "MISSING_PARTS", order_id: "AS-10230", part_codes: ["B2"] }), I({ type: "SHIPPING_STATUS", order_id: "AS-10150" }), I({ type: "PRODUCT_QA", sku: "SW-01", qa_topics: ["WEATHER"] })] },
+  C21: { animal_safety: true, intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true })] },
 };
 let bad = 0;
+{ const c21 = CASES.find((c) => c.id === "C21");
+  const d = decide({ intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", has_photo: true })] }, { channel: c21.email.channel });
+  if (d[0].decision !== "QUALITY_ESCALATION") { bad++; console.log("✗ C21 未凭系统记录识别重复", d[0].decision); } }
 for (const c of CASES) {
-  const got = decide(GOLD[c.id]).map((x) => x.decision).sort().join("+");
+  const got = decide(GOLD[c.id], { channel: c.email.channel }).map((x) => x.decision).sort().join("+");
   const want = [...c.expected.decisions].sort().join("+");
   if (got !== want) { bad++; console.log("✗", c.id, "want", want, "got", got); }
 }
-console.log(bad ? `${bad} 个用例不可达` : "20/20 用例的期望决策均可由规则得出");
+console.log(bad ? `${bad} 个用例不可达` : `${CASES.length}/${CASES.length} 用例的期望决策均可由规则得出`);
 process.exit(bad ? 1 : 0);

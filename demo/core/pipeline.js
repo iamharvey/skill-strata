@@ -30,7 +30,7 @@ export async function runBaseline(c, llm) {
 export async function runSkill(c, llm) {
   const trace = [];
   const facts = parseJSON(await call(llm, extractPrompt(c), trace));
-  const detail = decide(facts);                           // 确定性，模型不参与
+  const detail = decide(facts, { channel: c.email.channel });                           // 确定性，模型不参与
   trace.push({ id: `${c.id}:rules`, stage: "rules", system: "shared rules (deterministic)", user: JSON.stringify(facts, null, 2), response: JSON.stringify(detail, null, 2), ms: 0 });
   const j = parseJSON(await call(llm, replyPrompt(c, facts, detail), trace));
   return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: String(j.reply || ""), trace };
