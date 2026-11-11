@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SkillStrata Bench · 客服 Skill 语义化编程评测</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 24 24" aria-label="SkillStrata" role="img">
+        <rect x="3" y="4" width="18" height="3" rx="1" fill="currentColor" opacity=".35" />
+        <rect x="3" y="9" width="18" height="3" rx="1" fill="currentColor" opacity=".55" />
+        <rect x="3" y="14" width="18" height="3" rx="1" fill="currentColor" opacity=".8" />
+        <rect x="3" y="19" width="18" height="2" rx="1" fill="currentColor" />
+      </svg>
+      <div>
+        <div class="brand-name">SkillStrata Bench</div>
+        <div class="brand-sub">20 封客服邮件 · 单提示基线 vs 分层 Skill</div>
+      </div>
+    </div>
+    <div class="run-picker">
+      <label for="runSelect">结果来源</label>
+      <select id="runSelect"></select>
+    </div>
+  </header>
+
+  <div class="layout">
+    <aside class="panel config" aria-label="运行配置">
+      <h2>运行配置</h2>
+
+      <div class="field">
+        <span class="label">模型接入</span>
+        <div class="seg" role="radiogroup" id="providerSeg">
+          <button type="button" data-v="openai" aria-pressed="true">OpenAI 兼容</button>
+          <button type="button" data-v="anthropic">Anthropic</button>
+          <button type="button" data-v="bridge">本地 CLI</button>
+        </div>
+      </div>
+
+      <div id="providerFields"></div>
+
+      <div class="field">
+        <span class="label">运行模式</span>
+        <label class="check"><input type="checkbox" id="mBaseline" checked /> 基线：政策 + 数据塞进一个提示</label>
+        <label class="check"><input type="checkbox" id="mSkill" checked /> 分层 Skill：抽取 → 规则 → 回复</label>
+      </div>
+
+      <div class="field row2">
+        <label>并发<input id="concurrency" type="number" min="1" max="8" value="3" /></label>
+        <label>用例<select id="caseScope"><option value="all">全部 20 个</option><option value="5">前 5 个（试跑）</option></select></label>
+      </div>
+
+      <div class="actions">
+        <button id="runBtn" class="primary" type="button">开始运行</button>
+        <button id="stopBtn" class="ghost" type="button" disabled>停止</button>
+      </div>
+      <div class="progress" aria-live="polite"><div class="bar"><i id="progBar"></i></div><span id="progText">未运行</span></div>
+      <p id="runError" class="error" hidden></p>
+
+      <div class="divider"></div>
+      <div class="actions">
+        <button id="exportBtn" class="ghost" type="button">导出结果 JSON</button>
+        <label class="ghost file">导入结果<input id="importInput" type="file" accept=".json,application/json" /></label>
+      </div>
+      <p class="hint">密钥只保存在当前页面内存中，刷新即清除，不会上传到任何服务器以外的地方。浏览器直连需服务商允许跨域；不允许时请用本地 CLI 桥接。</p>
+    </aside>
+
+    <main>
+      <section class="panel" id="summary" aria-label="评测汇总"></section>
+      <section class="panel" aria-label="用例列表">
+        <div class="table-head">
+          <h2>用例明细</h2>
+          <div class="seg small" id="catSeg"></div>
+        </div>
+        <div class="table-wrap"><table id="caseTable"></table></div>
+      </section>
+      <section class="panel method" aria-label="评测方法">
+        <h2>怎么评</h2>
+        <div class="method-grid">
+          <div><b>基线</b><p>把售后政策、订单记录、商品规格和决策词表放进一个提示，让模型一次给出决策和回复。信息与分层 Skill 完全相同，只差结构。</p></div>
+          <div><b>分层 Skill</b><p>L3 只抽取事实（意图、订单、配件、破损等级、商品话题）→ L4 安全/争议守卫 → 规则代码给出唯一决策 → L2 按决策写回复。模型不参与业务结论。</p></div>
+          <div><b>评分</b><p>全部用正则和规则做确定性检查：决策是否正确、转人工判断、关键事实是否写到、是否出现越权金额或比例、禁止断言、安全场景是否谈赔偿、回复语言。单项得分 = 40% 决策 + 60% 其余检查。</p></div>
+        </div>
+      </section>
+      <footer class="foot">所有订单、商品、政策均为示意数据。源码：<a href="https://github.com/iamharvey/skill-strata" target="_blank" rel="noopener">github.com/iamharvey/skill-strata</a></footer>
+    </main>
+  </div>
+
+  <div class="drawer" id="drawer" hidden>
+    <div class="drawer-back" data-close></div>
+    <article class="drawer-body" role="dialog" aria-modal="true" aria-labelledby="drawerTitle">
+      <button class="close" type="button" data-close aria-label="关闭">×</button>
+      <div id="drawerContent"></div>
+    </article>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

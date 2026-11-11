@@ -56,6 +56,10 @@ flowchart LR
 
 差异集中在 T4、T5：**越往下层，“必须做”的事越由运行时保证，而不是靠模型自觉。**
 
+## 在线评测 Demo
+
+[`demo/`](demo/) 是一个网页评测台：20 封客服邮件（售后、退换货、产品 QA、物流时效、多意图），对比“单提示基线”和“分层 Skill”两种做法。可接入任意 OpenAI 兼容 API、Anthropic API，或通过本地桥接调用 Claude Code、Codex、Ollama 等 CLI。详见 [demo/README.md](demo/README.md)。
+
 ## 快速开始
 
 规则层可以直接运行：
@@ -90,6 +94,7 @@ skill-strata/
 │   ├── domain.yml
 │   └── actions/actions.py
 ├── tests/{test_rules.py, cases.yaml}
+├── demo/                                # 网页评测台（20 个邮件用例）
 └── docs/walkthrough.md                  # 完整讲解文档
 ```
 

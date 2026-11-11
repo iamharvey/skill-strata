@@ -1,0 +1,260 @@
+// 20 个客服邮件基线用例（示意数据）。
+// expected.decisions：期望的决策集合（与顺序无关）
+// expected.lang：期望回复语言
+// expected.allowed_amounts / allowed_pct：回复中允许出现的金额与百分比（订单金额自动允许）
+// expected.must_include：回复必须包含的事实（正则）
+// expected.claims：禁止的断言（正则，按句检查；句中含 unless 则不算违规）
+// expected.no_compensation：安全/争议场景，回复不得谈赔偿
+
+const NEG = "\\b(not|unable|cannot|never|unfortunately|without|exceeds?)\\b|n't|n’t";
+
+export const CASES = [
+  {
+    id: "C01", category: "售后", title: "缺件：配件有库存", difficulty: "易",
+    email: {
+      from: "megan.r@example.com", subject: "Missing part in my swing chair box",
+      body: "Hi, order AS-10023. I started assembling the swing chair this weekend and part C4 (the curved side bar on page 3 of the manual) is not in the box. Everything else seems fine. Can you help?",
+      attachments: [],
+    },
+    expected: { decisions: ["RESHIP_PARTS"], lang: "en", must_include: [{ pattern: "C4", flags: "i", label: "确认配件 C4" }], claims: [] },
+  },
+  {
+    id: "C02", category: "售后", title: "轻微划痕：客户要求 50% 退款", difficulty: "中",
+    email: {
+      from: "d.kowalski@example.com", subject: "Scratched table top - want 50% back",
+      body: "Order AS-10088. The acacia table arrived with several scratches across the top, photos attached. It's usable but it looks bad for a new table. I think a 50% refund is fair, otherwise I want to send it back.",
+      attachments: ["tabletop_1.jpg", "tabletop_2.jpg"],
+    },
+    expected: {
+      decisions: ["OFFER_PARTS_OR_PARTIAL_REFUND"], lang: "en", allowed_pct: [15, 50],
+      must_include: [{ pattern: "15\\s?%", flags: "i", label: "给出 15% 选项" }],
+      claims: [{ pattern: "50\\s?%", flags: "i", unless: NEG + "|you (asked|requested)|asked for|your request|options available", label: "不得答应 50% 退款" }],
+    },
+  },
+  {
+    id: "C03", category: "售后", title: "结构性破损 > 300 USD 且威胁拒付", difficulty: "难",
+    email: {
+      from: "jlarson@example.com", subject: "URGENT broken frame - refund TODAY",
+      body: "Order AS-10101. While assembling, one of the main frame legs snapped clean in half (photo attached). This is unacceptable. I want a full refund today or I will open a chargeback with my credit card company tomorrow.",
+      attachments: ["leg_snapped.jpg"],
+    },
+    expected: {
+      decisions: ["HANDOFF"], lang: "en",
+      claims: [{ pattern: "(we will|we'll|we have|i have|i've|we've)[^.]{0,40}(refund|issued|processed)", flags: "i", unless: NEG, label: "不得承诺已退款/全额退款" }],
+    },
+  },
+  {
+    id: "C04", category: "售后", title: "受伤 + 律师：安全升级", difficulty: "难",
+    email: {
+      from: "concerned.parent@example.com", subject: "Your bench collapsed and hurt my son",
+      body: "The swing bench we bought from you collapsed yesterday while my son was sitting on it. He hurt his wrist and we spent the evening in the ER. I have contacted a lawyer. I don't have the order number handy right now.",
+      attachments: [],
+    },
+    expected: { decisions: ["HANDOFF"], lang: "en", no_compensation: true, claims: [] },
+  },
+  {
+    id: "C05", category: "售后", title: "保修期内电池故障（附视频）", difficulty: "中",
+    email: {
+      from: "aisha.k@example.co.uk", subject: "Ride-on car stopped charging",
+      body: "Hello, order AS-10210. Our kids' ride-on car worked well until last week, now the battery won't charge at all - the charger light stays green and the car doesn't move. I've attached a short video showing it. We bought it in March.",
+      attachments: ["car_not_charging.mp4"],
+    },
+    expected: {
+      decisions: ["WARRANTY_PARTS"], lang: "en", allowed_amounts: [],
+      claims: [{ pattern: "\\$\\s?\\d|USD|£", flags: "i", unless: "free|no cost|no charge", label: "保修内不应向客户收费" }],
+    },
+  },
+  {
+    id: "C06", category: "售后", title: "过保修期气压棒失效", difficulty: "中",
+    email: {
+      from: "tom.b@example.com", subject: "Chair keeps sinking",
+      body: "My office chair from order AS-08800 keeps slowly sinking to the lowest position. I think the gas cylinder is gone. Can you send me a new one for free? Photo attached.",
+      attachments: ["chair.jpg"],
+    },
+    expected: {
+      decisions: ["OUT_OF_WARRANTY"], lang: "en",
+      claims: [{ pattern: "\\bfree\\b|at no (extra )?(cost|charge)|no charge", flags: "i", unless: NEG, label: "不得承诺免费配件" }],
+    },
+  },
+  {
+    id: "C07", category: "退换货", title: "未拆封改主意退货", difficulty: "易",
+    email: {
+      from: "lin.ch@example.com", subject: "Return request",
+      body: "Hi, I'd like to return the office chair from order AS-10170. I changed my mind and bought one locally. The box hasn't been opened. How does it work?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["RETURN_ALLOWED"], lang: "en", allowed_amounts: [12.95],
+      must_include: [{ pattern: "12\\.95", flags: "", label: "说明运费 12.95 USD 从退款扣除" }],
+      claims: [],
+    },
+  },
+  {
+    id: "C08", category: "退换货", title: "已组装改主意退货（应拒绝）", difficulty: "中",
+    email: {
+      from: "rachel.m@example.com", subject: "Returning the dining table",
+      body: "Hello, order AS-10175. We assembled the table last week but it's a bit too big for our patio. It's in perfect condition, we only used it twice. I'd like to return it for a refund please. I can disassemble it again.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["DECLINE_RETURN"], lang: "en",
+      claims: [{ pattern: "(return label|we('ll| will) (accept|process|arrange)|approved|happy to accept)", flags: "i", unless: NEG, label: "不得接受已组装商品的退货" }],
+    },
+  },
+  {
+    id: "C09", category: "退换货", title: "换颜色：目标颜色有库存", difficulty: "中",
+    email: {
+      from: "s.patel@example.com", subject: "Can I swap colour?",
+      body: "Hi there, I received the swing chair (order AS-10180) in grey but after seeing it in our garden we'd prefer the beige one. It's still in the original box, not assembled. Is an exchange possible?",
+      attachments: [],
+    },
+    expected: { decisions: ["EXCHANGE"], lang: "en", must_include: [{ pattern: "beige", flags: "i", label: "确认换成 beige" }], claims: [] },
+  },
+  {
+    id: "C10", category: "退换货", title: "德语：大件未组装退货，询问运费", difficulty: "中",
+    email: {
+      from: "k.schneider@example.de", subject: "Rücksendung Hollywoodschaukel",
+      body: "Guten Tag, ich möchte die Hollywoodschaukel aus Bestellung AS-10185 zurückgeben. Sie ist noch nicht aufgebaut und originalverpackt. Wer trägt die Rücksendekosten? Vielen Dank.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["RETURN_ALLOWED"], lang: "de", allowed_amounts: [59],
+      must_include: [{ pattern: "59", flags: "", label: "说明大件运费 59 USD" }],
+      claims: [],
+    },
+  },
+  {
+    id: "C11", category: "QA", title: "秋千承重：三位 110 kg 成人", difficulty: "中",
+    email: {
+      from: "big.family@example.com", subject: "Weight question before buying",
+      body: "Hi, I'm looking at your 3-seat patio swing chair. Me, my brother and my dad are all around 110 kg (about 240 lb). Can the three of us sit on it together safely?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["ANSWER_QA"], lang: "en",
+      must_include: [{ pattern: "300\\s?kg|660\\s?lb", flags: "i", label: "引用总承重 300 kg" }],
+      claims: [{ pattern: "(yes|can safely|is safe|will be fine|no problem)", flags: "i", unless: NEG + "|exceed|over|above|more than", label: "不得说可以安全乘坐" }],
+    },
+  },
+  {
+    id: "C12", category: "QA", title: "凉亭冬季积雪", difficulty: "中",
+    email: {
+      from: "northern.garden@example.com", subject: "Gazebo in winter",
+      body: "We get quite a bit of snow in winter here in Minnesota. Can your 3x4 aluminium hardtop gazebo stay up all winter with snow on the roof?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["ANSWER_QA"], lang: "en",
+      must_include: [{ pattern: "snow", flags: "i", label: "说明积雪要求" }],
+      claims: [{ pattern: "(rated|designed|built|strong enough)[^.]{0,20}snow|can stay up all winter", flags: "i", unless: NEG, label: "不得声称可承受积雪" }],
+    },
+  },
+  {
+    id: "C13", category: "QA", title: "规格未覆盖：FSC 认证", difficulty: "中",
+    email: {
+      from: "eco.buyer@example.com", subject: "FSC?",
+      body: "Is the wood in your 6-seat acacia patio dining table FSC certified? It's important for our company's sustainability policy.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["QA_UNKNOWN"], lang: "en",
+      claims: [{ pattern: "FSC", flags: "i", unless: NEG + "|whether|product team|verify|get back", label: "不得断言有或没有 FSC 认证" }],
+    },
+  },
+  {
+    id: "C14", category: "QA", title: "儿童车：7 岁 32 kg + 首次充电", difficulty: "中",
+    email: {
+      from: "mum.of.two@example.com", subject: "Ride-on car questions",
+      body: "Hi! Thinking of buying the 12V kids ride-on car for my daughter. She's 7 and weighs 32 kg - is that OK? And how long does the first charge take?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["ANSWER_QA"], lang: "en",
+      must_include: [
+        { pattern: "30\\s?kg|66\\s?lb", flags: "i", label: "引用 30 kg 限重" },
+        { pattern: "12\\s?(h|hours)", flags: "i", label: "首次充电 12 小时" },
+      ],
+      claims: [{ pattern: "(is fine|is ok|is okay|suitable for (her|your daughter)|perfect for (her|your daughter))", flags: "i", unless: NEG + "|exceed|over|above", label: "不得说适合她" }],
+    },
+  },
+  {
+    id: "C15", category: "QA", title: "法语：狗笼能否户外使用", difficulty: "中",
+    email: {
+      from: "julie.martin@example.fr", subject: "Cage pour chien - extérieur ?",
+      body: "Bonjour, est-ce que la grande cage en bois pour chien (XL) peut être utilisée dehors sur une terrasse couverte ? Merci d'avance.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["ANSWER_QA"], lang: "fr",
+      must_include: [{ pattern: "intérieur", flags: "i", label: "说明仅限室内" }],
+      claims: [{ pattern: "(peut être utilisée|convient|adaptée)[^.]{0,30}(extérieur|dehors|terrasse)", flags: "i", unless: "pas|ne |n'|uniquement", label: "不得说可户外使用" }],
+    },
+  },
+  {
+    id: "C16", category: "物流", title: "下单 8 个工作日未发货", difficulty: "中",
+    email: {
+      from: "frustrated.dad@example.com", subject: "Where is my order??",
+      body: "I ordered the ride-on car (AS-10162) on October 28 for my son's birthday on the 15th. It still says processing. When will it ship? I need it before the 15th.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["SHIPPING_DELAY_ESCALATE"], lang: "en",
+      must_include: [{ pattern: "cancel", flags: "i", label: "提供取消并全额退款选项" }],
+      claims: [{ pattern: "(will (ship|arrive|be delivered)|ships|guarantee)[^.]{0,25}(by|on|before|tomorrow|within|in time)", flags: "i", unless: NEG, label: "不得承诺发货/到货日期" }],
+    },
+  },
+  {
+    id: "C17", category: "物流", title: "在途超出 ETA 5 天", difficulty: "中",
+    email: {
+      from: "patio.project@example.com", subject: "Gazebo delivery late",
+      body: "My gazebo order AS-10150 was supposed to arrive by November 4. Tracking hasn't updated since October 30 in Memphis. What's going on?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["CARRIER_INVESTIGATION"], lang: "en",
+      claims: [{ pattern: "(will (arrive|be delivered)|should arrive|expect (it|delivery))[^.]{0,25}(by|on|tomorrow|within|in \\d)", flags: "i", unless: NEG, label: "不得承诺新到货日期" }],
+    },
+  },
+  {
+    id: "C18", category: "物流", title: "显示已签收但未收到（1 天）", difficulty: "中",
+    email: {
+      from: "no.box@example.com", subject: "Says delivered but nothing here",
+      body: "Tracking for AS-10201 says the garden bed was delivered yesterday but there's nothing at my door. Please send another one or refund me.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["WAIT_48H"], lang: "en",
+      must_include: [{ pattern: "neighbo|48|around", flags: "i", label: "请客户查看周边并等待 48 小时" }],
+      claims: [{ pattern: "(we will|we'll|i will|i'll)[^.]{0,20}(send (a|another) (new|replacement|one)|reship|refund)", flags: "i", unless: NEG + "|if", label: "不得直接承诺补发或退款" }],
+    },
+  },
+  {
+    id: "C19", category: "物流", title: "查询到货时间 + 发货后改地址", difficulty: "难",
+    email: {
+      from: "moving.soon@example.com", subject: "Delivery date and address change",
+      body: "Hi, when will my garden bed (AS-10240) arrive? Also, I'm moving next week - can you change the delivery address to 42 Oak Street, Dublin OH?",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["PROVIDE_ETA", "ADDRESS_CHANGE_DENIED"], lang: "en",
+      must_include: [{ pattern: "Nov(ember)?\\.?\\s?12|12(th)?\\s?Nov|11/12|2026-11-12", flags: "i", label: "给出 ETA 11 月 12 日" }],
+      claims: [{ pattern: "(updated|changed|we('ll| will) (update|change))[^.]{0,30}address", flags: "i", unless: NEG + "|carrier|UPS", label: "不得声称已改地址" }],
+    },
+  },
+  {
+    id: "C20", category: "综合", title: "一封邮件三件事：缺件 + 另一单延误 + 防水问题", difficulty: "难",
+    email: {
+      from: "busy.owner@example.com", subject: "A few issues",
+      body: "Hi team, a few things:\n1) My swing chair (AS-10230) arrived without part B2, the small crossbar.\n2) My gazebo order AS-10150 is late and tracking is stuck.\n3) Is the swing chair canopy waterproof? We get heavy rain.\nThanks.",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["RESHIP_PARTS", "CARRIER_INVESTIGATION", "ANSWER_QA"], lang: "en",
+      must_include: [
+        { pattern: "B2", flags: "i", label: "确认补寄 B2" },
+        { pattern: "water-?resistant", flags: "i", label: "说明是防泼水而非防水" },
+      ],
+      claims: [{ pattern: "\\bwaterproof\\b", flags: "i", unless: NEG, label: "不得说顶棚防水" }],
+    },
+  },
+];

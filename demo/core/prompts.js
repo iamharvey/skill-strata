@@ -1,0 +1,123 @@
+// 三类提示：基线（一段大提示）、L3 抽取、L2 回复。
+import { POLICY_TEXT, PRODUCTS, ORDERS, TODAY, findOrderIds } from "./data.js";
+import { DECISIONS, INTENT_TYPES } from "./rules.js";
+
+const emailBlock = (c) =>
+  `From: ${c.email.from}\nSubject: ${c.email.subject}\nAttachments: ${c.email.attachments.length ? c.email.attachments.join(", ") : "none"}\n\n${c.email.body}`;
+
+const catalogFull = () =>
+  Object.entries(PRODUCTS)
+    .map(([sku, p]) => `- ${sku} ${p.name} | oversize: ${p.oversize} | variants in stock: ${JSON.stringify(p.variants)} | parts stock: ${JSON.stringify(p.parts)}\n  spec: ${JSON.stringify(p.spec)}`)
+    .join("\n");
+
+const catalogNames = () => Object.entries(PRODUCTS).map(([sku, p]) => `- ${sku}: ${p.name}`).join("\n");
+
+// ---------------- 基线：把政策、数据、决策词表一次塞进一个提示 ----------------
+export function baselinePrompt(c) {
+  const orders = findOrderIds(c.email.body + " " + c.email.subject)
+    .map((id) => `- ${id}: ${ORDERS[id] ? JSON.stringify(ORDERS[id]) : "NOT FOUND"}`)
+    .join("\n") || "(no order number found in the email)";
+  const system = `You are a customer service agent for a cross-border outdoor furniture brand. Today is ${TODAY}.
+Follow the policy strictly and reply to the customer email.
+
+${POLICY_TEXT}
+
+Decision vocabulary (use only these): ${DECISIONS.join(", ")}.
+Use one decision per distinct customer request. If you hand off to a specialist, use HANDOFF.
+
+Return JSON only:
+{"decisions":[{"decision":"<one of the vocabulary>","order_id":"<id or null>","reason":"<short>"}],"reply":"<the email reply to the customer>"}`;
+  const user = `Customer email:
+"""
+${emailBlock(c)}
+"""
+
+Order records found:
+${orders}
+
+Product catalog:
+${catalogFull()}`;
+  return { id: `${c.id}:baseline`, stage: "baseline", system, user };
+}
+
+// ---------------- L3：只抽取事实，不做任何决定 ----------------
+export function extractPrompt(c) {
+  const system = `You extract structured facts from a customer service email. Do NOT decide outcomes, do NOT write a reply.
+Extract only what the customer actually says. Return JSON only, matching:
+{
+  "language": "<ISO 639-1 code of the customer's language>",
+  "safety_risk": <true if injury, safety hazard, lawyer, lawsuit or media is mentioned>,
+  "dispute": <true if a chargeback or payment dispute is mentioned, filed or threatened>,
+  "intents": [
+    {
+      "type": "<one of ${INTENT_TYPES.join("|")}>",
+      "order_id": "<AS-xxxxx or null>",
+      "sku": "<catalog SKU if the product can be identified by name, else null>",
+      "part_codes": ["<part codes from the manual, e.g. C4>"],
+      "severity": "<COSMETIC|STRUCTURAL|UNKNOWN, only for DAMAGE>",
+      "item_condition": "<UNOPENED|UNASSEMBLED|ASSEMBLED|USED|UNKNOWN>",
+      "reason": "<CHANGED_MIND|DEFECT|OTHER>",
+      "target_variant": "<requested color/variant for EXCHANGE, lowercase, else null>",
+      "qa_topics": ["<for PRODUCT_QA: MAX_LOAD|DIMENSIONS|MATERIAL|WEATHER|ASSEMBLY|CARE|CERTIFICATION|BATTERY|AGE_RANGE|WARRANTY>"],
+      "has_photo": <true if an image is attached or mentioned as attached>,
+      "has_video": <true if a video is attached>,
+      "customer_demand": "<what the customer explicitly demands, short, else null>"
+    }
+  ]
+}
+Intent definitions:
+- DAMAGE: item arrived damaged (scratches, dents, broken on arrival or during assembly).
+- MISSING_PARTS: parts missing from the box.
+- DEFECT_WARRANTY: item worked, then failed during normal use.
+- RETURN: wants to send the item back for a refund. EXCHANGE: wants a different color/variant.
+- PRODUCT_QA: question about product specs or suitability. One intent per product; list every topic asked.
+- SHIPPING_STATUS: where is my order / when will it ship or arrive. NOT_RECEIVED: tracking says delivered but not received.
+- ADDRESS_CHANGE: wants to change the delivery address.
+Create one intent per distinct request. Severity: STRUCTURAL = broken, snapped, cracked, deformed, cannot assemble; COSMETIC = scratches, dents, color marks only.
+
+Product catalog (names only):
+${catalogNames()}`;
+  const user = `Email:\n"""\n${emailBlock(c)}\n"""`;
+  return { id: `${c.id}:extract`, stage: "extract", system, user };
+}
+
+// ---------------- L2：只负责表达，结论由规则给定 ----------------
+export function replyPrompt(c, facts, decisions) {
+  const system = `<role>
+You are an after-sales customer service agent for a cross-border outdoor furniture brand. Professional, calm, empathetic.
+</role>
+<task>
+Write one email reply that covers every decision below, in the customer's language (${facts?.language || "en"}).
+First acknowledge the issue in one sentence, then give the outcome for each decision, then the next step.
+You may ONLY use the decisions, options, amounts, dates and product facts provided. Do not add solutions, amounts, percentages, dates or timeframes.
+</task>
+<how-to-write>
+- RESHIP_PARTS: confirm the part codes; tracking number will follow by email.
+- OFFER_PARTS_OR_PARTIAL_REFUND / OFFER_REPLACEMENT_OR_REFUND: list the options side by side; ask the customer to choose. If the customer asked for something else, politely say these are the options available.
+- WARRANTY_PARTS: free warranty replacement part will be sent; confirm the part.
+- OUT_OF_WARRANTY: explain it is outside the 12-month warranty; parts can be purchased and a specialist will send a quote. Do not say free.
+- RETURN_ALLOWED: explain the return is accepted, return instructions follow, and the given return fee is deducted from the refund.
+- DECLINE_RETURN: explain politely why the return cannot be accepted (use the reason); do not offer a return label.
+- EXCHANGE: confirm the exchange to the target variant; instructions follow.
+- ANSWER_QA: answer only using the product facts; if the facts mean the use is not suitable, say so clearly.
+- QA_UNKNOWN: say you will confirm with the product team and get back; do not guess yes or no.
+- SHIPPING_DELAY_ESCALATE: apologize, say the warehouse has been escalated, offer the options; no ship date.
+- CARRIER_INVESTIGATION: apologize, say a carrier investigation has been opened; no new delivery date.
+- WAIT_48H: ask the customer to check around the property and with neighbours and allow 48 hours; if still missing, reply and we will open a case.
+- PROVIDE_ETA: give the carrier and ETA if provided; otherwise say it has not shipped yet without a date.
+- ADDRESS_CHANGE_OK: confirm the address change request will be applied. ADDRESS_CHANGE_DENIED: explain the order has already shipped so the address cannot be changed by us.
+- ASK_INFO: ask only for the listed missing information.
+- HANDOFF with reason safety or chargeback_or_dispute: apologize sincerely and say a specialist will contact them as soon as possible. Do NOT mention refunds, compensation, replacement, cause or liability.
+- HANDOFF (other reasons): say the case has been passed to a specialist who will follow up; do not give a solution or internal reason.
+</how-to-write>
+<output-format>
+JSON only: {"reply":"<email text>"}. Under 160 words. Sign off as "Customer Care Team".
+</output-format>`;
+  const user = `<customer-email>
+${emailBlock(c)}
+</customer-email>
+<decisions>
+${JSON.stringify(decisions, null, 2)}
+</decisions>`;
+  return { id: `${c.id}:reply`, stage: "reply", system, user };
+}
