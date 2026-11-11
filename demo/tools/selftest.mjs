@@ -31,25 +31,25 @@ const GOLD = {
 let bad = 0;
 // v4：多轮状态
 { const c23 = CASES.find((c) => c.id === "C23"), c24 = CASES.find((c) => c.id === "C24");
-  const d23 = decide(GOLD.C23, { channel: c23.email.channel, thread: c23.email.thread, body: c23.email.body });
+  const d23 = decide(GOLD.C23, { channel: c23.email.channel, thread: c23.email.thread, body: c23.email.body, subject: c23.email.subject });
   const q = d23.find((d) => d.decision === "QUALITY_ESCALATION");
   if (!q?.options?.[0]?.includes("shipped first")) { bad++; console.log("✗ 笼具换货应先发"); }
   if (!q?.corrections?.length || !q?.do_not_offer?.length || !q.priority) { bad++; console.log("✗ 多轮状态未生效", JSON.stringify(q)); }
   if (/batch|QC/i.test(JSON.stringify(q?.options))) { bad++; console.log("✗ 选项不应承诺批次/质检"); }
   if (q?.units_affected !== 2) { bad++; console.log("✗ 网片问题件数应为 2"); }
-  const d24 = decide(GOLD.C24, { channel: c24.email.channel, thread: c24.email.thread, body: c24.email.body })[0];
+  const d24 = decide(GOLD.C24, { channel: c24.email.channel, thread: c24.email.thread, body: c24.email.body, subject: c24.email.subject })[0];
   if (!d24.safety_notice || !d24.customer_requests.length || !d24.for_specialist?.[0]?.confirmed) { bad++; console.log("✗ 纠纷转人工未保留事实/安全提醒", JSON.stringify(d24)); }
   if (!d24.no_reply) { bad++; console.log("✗ 纠纷应直接转人工、不自动回复"); } }
 { const c21 = CASES.find((c) => c.id === "C21");
   const d = decide({ intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", has_photo: true })] }, { channel: c21.email.channel });
   if (d[0].decision !== "QUALITY_ESCALATION") { bad++; console.log("✗ C21 未凭系统记录识别重复", d[0].decision); } }
 for (const c of CASES) {
-  const got = decide(GOLD[c.id], { channel: c.email.channel, thread: c.email.thread, body: c.email.body }).map((x) => x.decision).sort().join("+");
+  const got = decide(GOLD[c.id], { channel: c.email.channel, thread: c.email.thread, body: c.email.body, subject: c.email.subject }).map((x) => x.decision).sort().join("+");
   const want = [...c.expected.decisions].sort().join("+");
   if (got !== want) { bad++; console.log("✗", c.id, "want", want, "got", got); }
 }
 // 证据校验与人工兜底（模拟小模型的典型误判）
-{ const by = (id) => CASES.find((c) => c.id === id), ctx = (c) => ({ channel: c.email.channel, thread: c.email.thread, body: c.email.body });
+{ const by = (id) => CASES.find((c) => c.id === id), ctx = (c) => ({ channel: c.email.channel, thread: c.email.thread, body: c.email.body, subject: c.email.subject });
   const c22 = by("C22"), c04 = by("C04"), c02 = by("C02");
   // 1) 动物笼具损坏被误判为人身安全，原话不涉及人身风险 → 不走安全分支，照常决策并要求人工复核
   const a = decide({ ...GOLD.C22, safety_risk: true, evidence: { safety_risk: "it is just a good job my ferret hasn't been able to get out" } }, ctx(c22));
@@ -63,5 +63,16 @@ for (const c of CASES) {
   // 4) “否则就退货”被误判为纠纷 → 不静默转人工
   const d = decide({ ...GOLD.C02, dispute: true, evidence: { dispute: "otherwise I want to send it back" } }, ctx(c02));
   if (d.some((x) => x.no_reply) || !d[0].review_required) { bad++; console.log("✗ 无依据的纠纷标记应降级并人工复核", JSON.stringify(d)); } }
+// SKU 兜底：模型没给出 SKU 时按客户原文里的商品名匹配
+{ const ctx = (c) => ({ channel: c.email.channel, thread: c.email.thread, body: c.email.body, subject: c.email.subject });
+  for (const id of ["C11", "C12", "C13", "C14", "C15", "C20"]) {
+    const c = CASES.find((x) => x.id === id);
+    const g = { ...GOLD[id], intents: GOLD[id].intents.map((it) => (it.type === "PRODUCT_QA" ? { ...it, sku: null, ...(id === "C20" ? { customer_demand: "Is the swing chair canopy waterproof?" } : {}) } : it)) };
+    const got = decide(g, ctx(c)).map((x) => x.decision).sort().join("+"), want = [...c.expected.decisions].sort().join("+");
+    if (got !== want) { bad++; console.log(`✗ ${id} SKU 兜底后应得到 ${want}，实际 ${got}`); }
+  }
+  // 提到两个商品且诉求里分不清 → 不猜，追问
+  const amb = decide({ intents: [I({ type: "PRODUCT_QA", qa_topics: ["MAX_LOAD"], customer_demand: "Is it strong enough?" })] }, { body: "Choosing between the swing chair and the gazebo. Is it strong enough?" });
+  if (amb[0].decision !== "ASK_INFO") { bad++; console.log("✗ 商品不唯一时不应猜测", JSON.stringify(amb)); } }
 console.log(bad ? `${bad} 个用例不可达` : `${CASES.length}/${CASES.length} 用例的期望决策均可由规则得出`);
 process.exit(bad ? 1 : 0);

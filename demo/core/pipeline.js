@@ -36,7 +36,7 @@ export async function runSkill(c, llm) {
     const detail = [{ intent: "UNKNOWN", decision: "HANDOFF", reason: "extraction_failed", no_reply: true, review_reasons: [String(e.message || e)] }];
     return { mode: "skill", caseId: c.id, facts: null, decisions: ["HANDOFF"], detail, reply: "", trace };
   }
-  const detail = decide(facts, { channel: c.email.channel, thread: c.email.thread, body: c.email.body });                           // 确定性，模型不参与
+  const detail = decide(facts, { channel: c.email.channel, thread: c.email.thread, body: c.email.body, subject: c.email.subject });                           // 确定性，模型不参与
   trace.push({ id: `${c.id}:rules`, stage: "rules", system: "shared rules (deterministic)", user: JSON.stringify(facts, null, 2), response: JSON.stringify(detail, null, 2), ms: 0 });
   // 纠纷等“直接转人工”的情况：不调用回复层、不给客户自动回复，交接单在 detail 里
   if (detail.length && detail.every((d) => d.no_reply)) return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: "", trace };

@@ -29,7 +29,7 @@ export const INTENT_TYPES = [
   "PRODUCT_QA", "SHIPPING_STATUS", "NOT_RECEIVED", "ADDRESS_CHANGE", "OTHER",
 ];
 
-const out = (intent, decision, extra = {}) => ({ intent: intent.type, order_id: intent.order_id || null, decision, ...extra });
+const out = (intent, decision, extra = {}) => ({ intent: intent.type, order_id: intent.order_id || null, decision, ...extra, ...(intent.sku_source ? { sku_source: intent.sku_source } : {}) });
 
 // 订单解析：先用邮件里写的订单号；没有则按渠道（平台 + 买家 + 商品号）关联，取最新一单。
 function resolveOrder(it, ctx) {
@@ -40,10 +40,42 @@ function resolveOrder(it, ctx) {
   return { id: linked[0], order: ORDERS[linked[0]], history: linked.slice(1).map((id) => ({ id, ...ORDERS[id] })) };
 }
 
+// ---------- SKU 兜底：模型没对上商品时，按客户原文里的商品名确定性匹配 ----------
+// 只在客户原文里找；命中唯一商品才采用，多个商品时用该诉求的描述再缩小一次，仍不唯一就不猜（转为追问）。
+export const PRODUCT_ALIASES = {
+  "SW-01": /swing (chair|bench|seat)|patio swing|garden swing|hollywoodschaukel|balancelle/i,
+  "PT-02": /dining table|acacia (patio |wooden )?table|patio table|garden table|gartentisch|table de jardin/i,
+  "GB-03": /garden bed|raised bed|planter bed|hochbeet|potager surélevé/i,
+  "KB-04": /ride[- ]?on car|kids'? (electric )?car|elektroauto für kinder|voiture électrique/i,
+  "GZ-05": /gazebo|pavillon|tonnelle/i,
+  "DC-06": /dog crate|dog kennel|crate furniture|hundebox|hundekäfig|cage[^.?!]{0,25}chien|chien[^.?!]{0,25}cage/i,
+  "OF-07": /office chair|desk chair|bürostuhl|chaise de bureau/i,
+  "D51-105V01": /rabbit hutch|bunny cage|kaninchenstall|clapier/i,
+};
+const skuCodeRe = new RegExp(`\\b(${Object.keys(PRODUCTS).map((k) => k.replace(/[-]/g, "\\-")).join("|")})\\b`, "gi");
+const productsIn = (text) => {
+  const hit = new Set();
+  for (const m of String(text || "").matchAll(skuCodeRe)) hit.add(m[1].toUpperCase());
+  for (const [sku, re] of Object.entries(PRODUCT_ALIASES)) if (re.test(text || "")) hit.add(sku);
+  return [...hit];
+};
+export function matchSku(it, ctx = {}) {
+  const customer = [ctx.subject, ctx.body, ...(ctx.thread || []).filter((m) => m.role === "customer").map((m) => m.body)].join("\n");
+  const found = productsIn(customer);
+  if (found.length === 1) return found[0];
+  if (found.length > 1) {
+    const narrowed = productsIn([it.customer_demand, it.component].join(" ")).filter((s) => found.includes(s));
+    if (narrowed.length === 1) return narrowed[0];
+  }
+  return null;
+}
+
 function decideOne(it, ctx) {
   const { id: resolvedId, order, history } = resolveOrder(it, ctx);
   if (resolvedId && !it.order_id && order) it = { ...it, order_id: resolvedId };
-  const sku = it.sku || order?.sku || null;
+  const modelSku = it.sku && PRODUCTS[String(it.sku).toUpperCase()] ? String(it.sku).toUpperCase() : null;
+  const sku = modelSku || order?.sku || matchSku(it, ctx);
+  if (sku && !modelSku && !order?.sku) it = { ...it, sku, sku_source: "name_match" };
   const product = sku ? PRODUCTS[sku] : null;
 
   if (it.type === "PRODUCT_QA") {
