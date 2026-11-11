@@ -74,5 +74,18 @@ for (const c of CASES) {
   // 提到两个商品且诉求里分不清 → 不猜，追问
   const amb = decide({ intents: [I({ type: "PRODUCT_QA", qa_topics: ["MAX_LOAD"], customer_demand: "Is it strong enough?" })] }, { body: "Choosing between the swing chair and the gazebo. Is it strong enough?" });
   if (amb[0].decision !== "ASK_INFO") { bad++; console.log("✗ 商品不唯一时不应猜测", JSON.stringify(amb)); } }
+// 只对客户真正问到的主题判“答不了”
+{ const by = (id) => CASES.find((c) => c.id === id), ctx = (c) => ({ channel: c.email.channel, thread: c.email.thread, body: c.email.body, subject: c.email.subject });
+  const q = (sku, topics) => ({ intents: [I({ type: "PRODUCT_QA", sku, qa_topics: topics })] });
+  const a = decide(q("GZ-05", ["MAX_LOAD", "WEATHER"]), ctx(by("C12")));            // 问积雪能否过冬，模型多标了 MAX_LOAD
+  if (a[0].decision !== "ANSWER_QA" || !a[0].dropped_topics?.includes("MAX_LOAD")) { bad++; console.log("✗ C12 多标的主题应忽略", JSON.stringify(a)); }
+  const b = decide(q("DC-06", ["MATERIAL", "WEATHER", "CARE", "WARRANTY"]), ctx(by("C15")));   // 法语问能否户外用，模型多标了 CARE
+  if (b[0].decision !== "ANSWER_QA") { bad++; console.log("✗ C15 多标的主题应忽略", JSON.stringify(b)); }
+  const c = decide(q("GZ-05", ["CARE", "WEATHER"]), { body: "How do I clean the roof panels of the gazebo, and is it OK in rain?" });   // 真问到了规格里没有的保养
+  if (c[0].decision !== "QA_UNKNOWN" || c[0].missing_topics[0] !== "CARE") { bad++; console.log("✗ 真正问到的未知主题必须判答不了", JSON.stringify(c)); }
+  const d = decide(q("PT-02", ["CERTIFICATION"]), ctx(by("C13")));
+  if (d[0].decision !== "QA_UNKNOWN") { bad++; console.log("✗ C13 FSC 必须判答不了", JSON.stringify(d)); }
+  const e = decide(q("GZ-05", ["OTHER"]), { body: "Does the gazebo come in green?" });   // 没有可答主题 → 仍判答不了，不硬答
+  if (e[0].decision !== "QA_UNKNOWN") { bad++; console.log("✗ 无可答主题时应判答不了", JSON.stringify(e)); } }
 console.log(bad ? `${bad} 个用例不可达` : `${CASES.length}/${CASES.length} 用例的期望决策均可由规则得出`);
 process.exit(bad ? 1 : 0);

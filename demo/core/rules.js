@@ -70,6 +70,21 @@ export function matchSku(it, ctx = {}) {
   return null;
 }
 
+// ---------- QA 主题的原文依据（英/德/法常见说法） ----------
+export const TOPIC_TERMS = {
+  MAX_LOAD: /\b\d+\s?(kg|kilo|lb|lbs|pounds?)\b|weigh|weight|max(imum)? load|load capacity|capacity|how much (can|will) it (hold|take|support)|hold (up to|\d)|support (\d|up to|the weight)|tragkraft|belastbar|gewicht|poids|charge max/i,
+  DIMENSIONS: /dimension|size|how (big|large|tall|wide|long|high)|height|width|length|depth|\bcm\b|\binch|measure|fit (in|through)|größe|maße|taille|mesure/i,
+  MATERIAL: /material|made (of|from)|what (wood|metal)|steel|alumin|plastic|wood(en)?\b|fabric|material|matériau|en bois|holz/i,
+  WEATHER: /weather|rain|snow|wind|winter|outdoor|outside|waterproof|water[- ]?resistant|sun|uv|frost|damp|wet|dehors|extérieur|pluie|neige|draußen|regen|schnee|wetter/i,
+  ASSEMBLY: /assembl|put together|set up|install|how long to build|tools|montage|aufbau|monter/i,
+  CARE: /clean|maintain|maintenance|\bcare\b|oil|re-?oil|treat|wash|polish|entretien|nettoy|pflege|reinig/i,
+  CERTIFICATION: /certif|\bfsc\b|\bce\b|astm|en ?71|bifma|tested|standard|compliant|zertifi|norme/i,
+  BATTERY: /batter|charg|run ?time|how long (does|will) it (run|last|drive)|akku|laden|recharge/i,
+  AGE_RANGE: /\bage\b|years? old|\b\d+\s?(yo|y\/o)\b|she'?s \d|he'?s \d|toddler|child|kid|\bans\b|jahre/i,
+  WARRANTY: /warrant|guarantee|garantie|gewährleistung/i,
+};
+const askedText = (ctx = {}) => [ctx.subject, ctx.body, ...(ctx.thread || []).filter((m) => m.role === "customer").map((m) => m.body)].join("\n");
+
 function decideOne(it, ctx) {
   const { id: resolvedId, order, history } = resolveOrder(it, ctx);
   if (resolvedId && !it.order_id && order) it = { ...it, order_id: resolvedId };
@@ -83,8 +98,14 @@ function decideOne(it, ctx) {
     const topics = it.qa_topics?.length ? it.qa_topics : ["OTHER"];
     const facts = {}, missing = [];
     for (const t of topics) (product.spec[t] ? (facts[t] = product.spec[t]) : missing.push(t));
-    if (missing.length) return out(it, "QA_UNKNOWN", { sku, product: product.name, facts, missing_topics: missing });
-    return out(it, "ANSWER_QA", { sku, product: product.name, facts });
+    // 只对客户真正问到的主题判“答不了”：规格里没有的主题，必须在客户原文里有对应说法才算；
+    // 没有原文依据的视为模型多标，记录后忽略。若一个能答的主题都没有，仍保守地判答不了，不硬答。
+    const asked = askedText(ctx);
+    const unknown = missing.filter((t) => !TOPIC_TERMS[t] || TOPIC_TERMS[t].test(asked));
+    const dropped = missing.filter((t) => !unknown.includes(t));
+    const trace = dropped.length ? { dropped_topics: dropped } : {};
+    if (unknown.length || !Object.keys(facts).length) return out(it, "QA_UNKNOWN", { sku, product: product.name, facts, missing_topics: unknown.length ? unknown : missing, ...trace });
+    return out(it, "ANSWER_QA", { sku, product: product.name, facts, ...trace });
   }
 
   if (!order) return out(it, "ASK_INFO", { reason: it.order_id ? "order_not_found" : "missing_order_id", ask: ["order number"] });
