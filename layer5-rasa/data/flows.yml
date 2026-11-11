@@ -1,0 +1,68 @@
+flows:
+  report_damage_or_missing_parts:
+    description: 客户反馈收到的家具破损、有划痕、断裂或缺少配件，需要售后处理
+    steps:
+      - collect: safety_risk
+        ask_before_filling: false          # 只从客户原话中提取，不主动询问
+        next:
+          - if: slots.safety_risk
+            then:
+              - action: action_handoff_to_human
+              - action: utter_safety_handoff
+                next: END
+          - else: ask_order
+
+      - id: ask_order
+        collect: order_id
+        description: 订单号，形如 AS-12345
+      - action: action_lookup_order        # 写入 days_since_delivery、amount_usd
+        next:
+          - if: slots.days_since_delivery > 30
+            then:
+              - action: action_handoff_to_human
+              - action: utter_handoff_generic
+                next: END
+          - else: ask_issue
+
+      - id: ask_issue
+        collect: issue_type
+        description: 问题类型，damaged 或 missing_parts
+        next:
+          - if: slots.issue_type = "missing_parts"
+            then: ask_parts
+          - else: ask_photos
+
+      - id: ask_parts
+        collect: missing_part_codes
+        description: 说明书上缺失配件的编号，如 C4，多个用逗号分隔
+        next: decide
+
+      - id: ask_photos
+        collect: photos_uploaded
+        next:
+          - if: slots.photos_uploaded
+            then:
+              - action: action_assess_damage   # 调用第三层的 DSPy 判定，写入 severity
+                next: decide
+          - else: ask_photos
+
+      - id: decide
+        action: action_decide_resolution       # 写入 decision、options
+        next:
+          - if: slots.decision = "RESHIP_PARTS"
+            then:
+              - action: action_create_parts_reshipment
+              - action: utter_parts_reshipped
+                next: END
+          - if: slots.decision = "OFFER"
+            then: ask_choice
+          - else:
+              - action: action_handoff_to_human
+              - action: utter_handoff_generic
+                next: END
+
+      - id: ask_choice
+        collect: chosen_option
+        description: 客户从系统给出的选项中选择的方案
+      - action: action_execute_choice
+      - action: utter_choice_confirmed

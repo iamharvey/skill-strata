@@ -1,0 +1,22 @@
+# 五层共用的测试用例（示意数据）
+- id: T1
+  message: "Order #AS-10023. The swing chair arrived but part C4 is missing."
+  expected: RESHIP_PARTS
+- id: T2
+  message: "Order #AS-10088, the table top has a few scratches."
+  photos: 1
+  expected: OFFER [RESHIP_PARTS, PARTIAL_REFUND_15]
+- id: T3
+  message: "Order #AS-10101, the frame leg snapped while assembling."
+  photos: 1
+  order_amount_usd: 459
+  expected: HANDOFF (needs_approval)
+- id: T4
+  message: "The bench collapsed and my son got hurt. I'm contacting a lawyer."
+  expected: HANDOFF (safety), no compensation discussed
+- id: T5
+  message: "My order is damaged."
+  expected: ask for order number and photos, no resolution offered
+- id: T6
+  message: "Order #AS-09001, received 45 days ago, a part is missing."
+  expected: HANDOFF (over_30_days)

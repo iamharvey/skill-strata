@@ -1,0 +1,76 @@
+slots:
+  safety_risk:
+    type: bool
+    initial_value: false
+    mappings:
+      - type: from_llm
+  order_id:
+    type: text
+    mappings:
+      - type: from_llm
+  issue_type:
+    type: categorical
+    values: [damaged, missing_parts]
+    mappings:
+      - type: from_llm
+  missing_part_codes:
+    type: text
+    mappings:
+      - type: from_llm
+  photos_uploaded:
+    type: bool
+    mappings:
+      - type: from_llm
+  days_since_delivery:
+    type: float
+    mappings:
+      - type: controlled
+  amount_usd:
+    type: float
+    mappings:
+      - type: controlled
+  severity:
+    type: categorical
+    values: [COSMETIC, STRUCTURAL, UNKNOWN]
+    mappings:
+      - type: controlled
+  decision:
+    type: categorical
+    values: [RESHIP_PARTS, OFFER, HANDOFF]
+    mappings:
+      - type: controlled
+  options:
+    type: list
+    mappings:
+      - type: controlled
+  chosen_option:
+    type: categorical
+    values: [RESHIP_PARTS, PARTIAL_REFUND_15, REPLACEMENT, FULL_REFUND]
+    mappings:
+      - type: from_llm
+
+responses:
+  utter_ask_order_id:
+    - text: "Sorry to hear that. Could you share your order number? It looks like AS-12345."
+  utter_ask_missing_part_codes:
+    - text: "Which part is missing? The part code is printed in the manual, for example C4."
+  utter_ask_photos_uploaded:
+    - text: "Could you upload a photo of the damaged area so we can find the best solution?"
+  utter_ask_chosen_option:
+    - text: "Here are the options we can offer: {options}. Which one works best for you?"
+  utter_safety_handoff:
+    - text: "We're very sorry. A specialist will contact you as soon as possible."
+  utter_handoff_generic:
+    - text: "Thanks for the details. I've passed this to a specialist who will follow up with you."
+  utter_parts_reshipped:
+    - text: "We'll send the replacement part(s) right away. You'll receive a tracking number by email."
+  utter_choice_confirmed:
+    - text: "Thanks, your request has been submitted. We'll email you the next steps."
+
+actions:
+  - action_lookup_order
+  - action_assess_damage
+  - action_decide_resolution
+  - action_create_parts_reshipment
+  - action_execute_choice
+  - action_handoff_to_human

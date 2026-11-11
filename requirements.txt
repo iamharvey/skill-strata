@@ -1,0 +1,8 @@
+# 只运行规则测试时只需要 pytest；各层依赖按需安装
+pytest
+# poml          # layer2
+# baml-py       # layer3 BAML
+# dspy          # layer3 DSPy
+# parlant       # layer4
+# rasa-pro      # layer5（需要许可证）
+# rasa-sdk      # layer5 custom actions
