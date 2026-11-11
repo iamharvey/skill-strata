@@ -57,6 +57,10 @@ Extract only what the customer actually says. Return JSON only, matching:
   "animal_safety": <true if a pet/animal enclosure is damaged so animals could escape or get hurt (no injury yet)>,
   "dispute": <true if a chargeback, payment dispute, marketplace case (eBay/Amazon) or negative feedback is mentioned, filed or threatened>,
   "dispute_type": "<CHARGEBACK|MARKETPLACE_CASE|FEEDBACK|null>",
+  "evidence": {
+    "safety_risk": "<if safety_risk is true: the customer's exact words (copied verbatim) showing the injury, hazard to people, lawyer or media; else null>",
+    "dispute": "<if dispute is true: the customer's exact words (copied verbatim) mentioning the chargeback, case or feedback; else null>"
+  },
   "previous_offers": [
     {"type": "<PARTIAL_REFUND|SELF_REPAIR|REPLACEMENT_WITH_COLLECTION|REPLACEMENT_NO_RETURN|FULL_REFUND|ASK_INFO|OTHER: offers our team made in earlier replies>",
      "pct": <percentage if any, else null>, "units": <number of units covered if stated, else null>,
@@ -93,6 +97,7 @@ Intent definitions:
 - SHIPPING_STATUS: where is my order / when will it ship or arrive. NOT_RECEIVED: tracking says delivered but not received.
 - ADDRESS_CHANGE: wants to change the delivery address.
 Create one intent per distinct request, and one intent per distinct problem: different components or different defects (e.g. broken mesh vs rusty trays) are separate intents, each with its own units_affected and has_photo (has_photo is true only if a photo of THAT problem was sent anywhere in the thread).
+A damaged pet enclosure where animals could escape but no one (person or animal) has been hurt is animal_safety, NOT safety_risk.
 If the email contains earlier messages, read the whole thread: fill previous_offers from our team's earlier replies and the customer's reactions; describe the current state of the case. Severity: STRUCTURAL = broken, snapped, cracked, deformed, cannot assemble, mesh/welds/hinges/latches failed so the item no longer does its job; COSMETIC = scratches, dents, color marks only.
 
 Product catalog (names only):

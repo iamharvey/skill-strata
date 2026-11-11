@@ -169,9 +169,50 @@ export function buildState(facts, ctx = {}) {
   };
 }
 
-// ctx：系统侧上下文（渠道、对话历史），不来自模型
+// ---------- L4 证据校验：高影响字段（safety_risk / dispute）必须有客户原话支撑 ----------
+// 模型只负责“摘出原话”；原话是否真在邮件里、是否真的指向人身风险/纠纷，由下面的确定性检查判断。
+export const PERSON_HAZARD = /injur|\bhurt\b|wound|bleed|blood|hospital|\bER\b|A&E|emergency room|doctor|ambulance|stitches|fractur|broken (arm|leg|wrist|bone|finger)|caught fire|on fire|fire hazard|electric(al)? shock|\bdied\b|\bdead\b|killed|lawyer|solicitor|attorney|lawsuit|\bsue\b|legal action|journalist|the press|the media|trading standards/i;
+export const DISPUTE_TERMS = /charge ?back|dispute|card company|\bbank\b|paypal|open(ing)? a (case|claim)|\b(ebay|amazon)\b|feedback|(bad|negative|1[- ]star) review/i;
+const norm = (t) => String(t || "").toLowerCase().replace(/[“”"'‘’`]/g, "").replace(/\s+/g, " ").trim();
+function quotedIn(quote, texts) {
+  const hay = norm(texts.join(" \n "));
+  const parts = norm(quote).split(/\s*(?:\.\.\.|…)\s*/).filter((p) => p.length >= 6);
+  return parts.length > 0 && parts.every((p) => hay.includes(p));
+}
+export function verifyFlags(facts, ctx = {}) {
+  const latest = ctx.body || "";
+  const texts = [latest, ...(ctx.thread || []).filter((m) => m.role === "customer").map((m) => m.body || "")];
+  const ev = facts?.evidence || {};
+  const check = (claimed, quote, lex) => {
+    const inText = !!quote && quotedIn(quote, texts), onTopic = !!quote && lex.test(quote);
+    return { claimed: !!claimed, quote: quote || null, verified: !!claimed && inText && onTopic, in_text: inText, on_topic: onTopic, guard_hit: lex.test(latest) };
+  };
+  const safety = check(facts?.safety_risk, ev.safety_risk, PERSON_HAZARD);
+  const dispute = check(facts?.dispute, ev.dispute, DISPUTE_TERMS);
+  const review = [];
+  const why = (v) => !v.quote ? "no quote" : !v.in_text ? "quote not found in the customer's messages" : "quote does not describe it";
+  if (safety.claimed && !safety.verified && !safety.guard_hit) review.push(`safety_risk claimed but not verified (${why(safety)})`);
+  if (dispute.claimed && !dispute.verified && !dispute.guard_hit) review.push(`dispute claimed but not verified (${why(dispute)})`);
+  if (!dispute.claimed && dispute.guard_hit) review.push("dispute terms in the latest message but dispute not extracted");
+  return {
+    safety: safety.verified || safety.guard_hit,      // 人身风险：宁可误转人工，不可漏（模型漏判时由关键词兜底）
+    dispute: dispute.verified || (dispute.claimed && dispute.guard_hit),   // 纠纷=不自动回复，影响大：需原话或关键词佐证
+    review, detail: { safety, dispute },
+  };
+}
+
+// ctx：系统侧上下文（渠道、对话历史、本封正文），不来自模型
 export function decide(facts, ctx = {}) {
-  if (facts?.safety_risk) return [{ intent: "SAFETY", decision: "HANDOFF", reason: "safety" }];
+  const v = verifyFlags(facts, ctx);
+  if (v.safety) return [{ intent: "SAFETY", decision: "HANDOFF", reason: "safety", ...(facts?.safety_risk ? {} : { guard: "keyword" }) }];
+  facts = { ...facts, safety_risk: false, dispute: v.dispute };
+  const ds = decideVerified(facts, ctx);
+  // 人工兜底：高影响字段没有通过校验时，照常给出决策和回复草稿，但必须人工复核后才能发送
+  if (v.review.length) for (const d of ds) Object.assign(d, { review_required: true, review_reasons: v.review });
+  return ds;
+}
+
+function decideVerified(facts, ctx) {
   const state = buildState(facts, ctx);
   const intents = Array.isArray(facts?.intents) && facts.intents.length ? facts.intents : [{ type: "OTHER" }];
   const ds = intents.map((it) => decideOne(it, { ...ctx, state }));

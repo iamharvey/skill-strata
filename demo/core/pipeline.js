@@ -29,14 +29,21 @@ export async function runBaseline(c, llm) {
 
 export async function runSkill(c, llm) {
   const trace = [];
-  const facts = parseJSON(await call(llm, extractPrompt(c), trace));
-  const detail = decide(facts, { channel: c.email.channel, thread: c.email.thread });                           // 确定性，模型不参与
+  const raw = await call(llm, extractPrompt(c), trace);
+  let facts;
+  try { facts = parseJSON(raw); }
+  catch (e) {                                                                                                   // 人工兜底：抽取结果无法解析时整单转人工，不自动回复
+    const detail = [{ intent: "UNKNOWN", decision: "HANDOFF", reason: "extraction_failed", no_reply: true, review_reasons: [String(e.message || e)] }];
+    return { mode: "skill", caseId: c.id, facts: null, decisions: ["HANDOFF"], detail, reply: "", trace };
+  }
+  const detail = decide(facts, { channel: c.email.channel, thread: c.email.thread, body: c.email.body });                           // 确定性，模型不参与
   trace.push({ id: `${c.id}:rules`, stage: "rules", system: "shared rules (deterministic)", user: JSON.stringify(facts, null, 2), response: JSON.stringify(detail, null, 2), ms: 0 });
   // 纠纷等“直接转人工”的情况：不调用回复层、不给客户自动回复，交接单在 detail 里
   if (detail.length && detail.every((d) => d.no_reply)) return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: "", trace };
   const forReply = detail.map(({ internal_log, ...d }) => d);                                                  // 内部记录不进入回复层
   const j = parseJSON(await call(llm, replyPrompt(c, facts, forReply), trace));
-  return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: String(j.reply || ""), trace };
+  const review = detail.find((d) => d.review_required);
+  return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: String(j.reply || ""), trace, ...(review ? { review_required: true, review_reasons: review.review_reasons } : {}) };
 }
 
 export const RUNNERS = { baseline: runBaseline, skill: runSkill };

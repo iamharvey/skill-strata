@@ -172,3 +172,4 @@ pre { font-family: var(--font-mono); font-size: var(--text-xs); white-space: pre
   td:nth-child(5) { grid-column: 1 / 3; } td:nth-child(6) { grid-column: 3; }
 }
 .note{width:100%;border-collapse:collapse;font-size:var(--text-sm,13px);margin-top:4px}.note th{text-align:left;white-space:nowrap;padding:4px 10px 4px 0;color:var(--color-text-muted,#666);font-weight:500;vertical-align:top}.note td{padding:4px 0;border-bottom:1px solid var(--color-border,#e5e5e5)}
+.review{margin:8px 0;padding:8px 12px;border-radius:var(--radius,6px);background:#fbf1dc;color:#6b4a00;font-size:var(--text-sm,13px)}

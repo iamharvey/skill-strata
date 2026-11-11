@@ -197,7 +197,7 @@ function colBlock(m, r) {
     <h3><span>${MODES[m]}</span><span>${(r.score.score * 100).toFixed(0)} 分</span></h3>
     <h4>决策</h4><div class="chips">${r.decisions.map((d) => `<span class="chip">${esc(d)}</span>`).join("") || "<span class='hint'>无</span>"}</div>
     ${m === "skill" && r.facts ? `<h4>L3 抽取的事实</h4><pre>${esc(JSON.stringify(r.facts, null, 2))}</pre>` : ""}
-    <h4>回复</h4><div class="reply">${r.reply ? esc(r.reply) : "（不自动回复，已直接转人工）"}</div>${handoffNote(r)}
+    ${r.review_required ? `<p class="review">需人工复核后再发送：${esc((r.review_reasons || []).join("；"))}</p>` : ""}<h4>回复</h4><div class="reply">${r.reply ? esc(r.reply) + (r.review_required ? "\n\n（草稿）" : "") : "（不自动回复，已直接转人工）"}</div>${handoffNote(r)}
     <h4>检查项</h4>
     <ul class="checks">${r.score.checks.map((x) => `<li class="${x.pass ? "ok" : "bad"}"><span class="ic">${x.pass ? "✓" : "✗"}</span><span>${esc(x.label)}<div class="det">${esc(x.detail)}</div></span></li>`).join("")}</ul>
     ${traceBlock(r)}
