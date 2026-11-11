@@ -24,16 +24,25 @@ const GOLD = {
   C19: { intents: [I({ type: "SHIPPING_STATUS", order_id: "AS-10240" }), I({ type: "ADDRESS_CHANGE", order_id: "AS-10240" })] },
   C20: { intents: [I({ type: "MISSING_PARTS", order_id: "AS-10230", part_codes: ["B2"] }), I({ type: "SHIPPING_STATUS", order_id: "AS-10150" }), I({ type: "PRODUCT_QA", sku: "SW-01", qa_topics: ["WEATHER"] })] },
   C22: { animal_safety: true, intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true })] },
-  C23: { animal_safety: true, intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true }), I({ type: "DEFECT_WARRANTY", severity: "COSMETIC" })] },
-  C24: { dispute: true, intents: [] },
+  C23: { animal_safety: true, previous_offers: [{ type: "SELF_REPAIR", status: "REJECTED" }, { type: "REPLACEMENT_WITH_COLLECTION", status: "REJECTED", reject_reason: "nowhere to keep ferrets" }], intents: [I({ type: "DEFECT_WARRANTY", component: "front mesh door", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true }), I({ type: "DEFECT_WARRANTY", component: "metal tray", severity: "COSMETIC", units_affected: 3 })] },
+  C24: { dispute: true, dispute_type: "MARKETPLACE_CASE", animal_safety: true, customer_choice: "REPLACEMENT", intents: [I({ type: "DEFECT_WARRANTY", component: "front mesh door", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true })] },
   C21: { animal_safety: true, intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", repeat_issue: true, units_affected: 2, has_photo: true })] },
 };
 let bad = 0;
+// v4：多轮状态
+{ const c23 = CASES.find((c) => c.id === "C23"), c24 = CASES.find((c) => c.id === "C24");
+  const d23 = decide(GOLD.C23, { channel: c23.email.channel, thread: c23.email.thread });
+  const q = d23.find((d) => d.decision === "QUALITY_ESCALATION");
+  if (!q?.options?.[0]?.includes("shipped first")) { bad++; console.log("✗ 笼具换货应先发"); }
+  if (!q?.corrections?.length || !q?.do_not_offer?.length || !q.priority) { bad++; console.log("✗ 多轮状态未生效", JSON.stringify(q)); }
+  if (q?.units_affected !== 2) { bad++; console.log("✗ 网片问题件数应为 2"); }
+  const d24 = decide(GOLD.C24, { channel: c24.email.channel, thread: c24.email.thread })[0];
+  if (!d24.safety_notice || !d24.customer_requests.length || !d24.for_specialist?.[0]?.confirmed) { bad++; console.log("✗ 纠纷转人工未保留事实/安全提醒", JSON.stringify(d24)); } }
 { const c21 = CASES.find((c) => c.id === "C21");
   const d = decide({ intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", has_photo: true })] }, { channel: c21.email.channel });
   if (d[0].decision !== "QUALITY_ESCALATION") { bad++; console.log("✗ C21 未凭系统记录识别重复", d[0].decision); } }
 for (const c of CASES) {
-  const got = decide(GOLD[c.id], { channel: c.email.channel }).map((x) => x.decision).sort().join("+");
+  const got = decide(GOLD[c.id], { channel: c.email.channel, thread: c.email.thread }).map((x) => x.decision).sort().join("+");
   const want = [...c.expected.decisions].sort().join("+");
   if (got !== want) { bad++; console.log("✗", c.id, "want", want, "got", got); }
 }

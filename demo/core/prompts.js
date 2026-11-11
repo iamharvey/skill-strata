@@ -55,7 +55,15 @@ Extract only what the customer actually says. Return JSON only, matching:
   "language": "<ISO 639-1 code of the customer's language>",
   "safety_risk": <true if a person or animal has been injured, or a safety hazard to people, lawyer, lawsuit or media is mentioned>,
   "animal_safety": <true if a pet/animal enclosure is damaged so animals could escape or get hurt (no injury yet)>,
-  "dispute": <true if a chargeback or payment dispute is mentioned, filed or threatened>,
+  "dispute": <true if a chargeback, payment dispute, marketplace case (eBay/Amazon) or negative feedback is mentioned, filed or threatened>,
+  "dispute_type": "<CHARGEBACK|MARKETPLACE_CASE|FEEDBACK|null>",
+  "previous_offers": [
+    {"type": "<PARTIAL_REFUND|SELF_REPAIR|REPLACEMENT_WITH_COLLECTION|REPLACEMENT_NO_RETURN|FULL_REFUND|ASK_INFO|OTHER: offers our team made in earlier replies>",
+     "pct": <percentage if any, else null>, "units": <number of units covered if stated, else null>,
+     "status": "<PENDING|ACCEPTED|REJECTED: the customer's reaction in later messages>", "reject_reason": "<short, else null>"}
+  ],
+  "customer_choice": "<REPLACEMENT|FULL_REFUND|PARTIAL_REFUND|null: the resolution the customer now explicitly asks for>",
+  "info_already_given": ["<facts the customer has already stated in the thread, e.g. 'all 3 trays rusty'>"],
   "intents": [
     {
       "type": "<one of ${INTENT_TYPES.join("|")}>",
@@ -63,8 +71,9 @@ Extract only what the customer actually says. Return JSON only, matching:
       "sku": "<catalog SKU if the product can be identified by name, else null>",
       "part_codes": ["<part codes from the manual, e.g. C4>"],
       "severity": "<COSMETIC|STRUCTURAL|UNKNOWN, for DAMAGE and DEFECT_WARRANTY>",
+      "component": "<the part with the problem, e.g. 'front mesh door', 'metal tray', else null>",
       "repeat_issue": <true if the customer says this is the second (or later) unit with the same problem>,
-      "units_affected": <number of units with this problem the customer mentions, default 1>,
+      "units_affected": <number of units with THIS problem on THIS component, default 1>,
       "item_condition": "<UNOPENED|UNASSEMBLED|ASSEMBLED|USED|UNKNOWN>",
       "reason": "<CHANGED_MIND|DEFECT|OTHER>",
       "target_variant": "<requested color/variant for EXCHANGE, lowercase, else null>",
@@ -83,7 +92,8 @@ Intent definitions:
 - PRODUCT_QA: question about product specs or suitability. One intent per product; list every topic asked.
 - SHIPPING_STATUS: where is my order / when will it ship or arrive. NOT_RECEIVED: tracking says delivered but not received.
 - ADDRESS_CHANGE: wants to change the delivery address.
-Create one intent per distinct request. Severity: STRUCTURAL = broken, snapped, cracked, deformed, cannot assemble, mesh/welds/hinges/latches failed so the item no longer does its job; COSMETIC = scratches, dents, color marks only.
+Create one intent per distinct request, and one intent per distinct problem: different components or different defects (e.g. broken mesh vs rusty trays) are separate intents, each with its own units_affected and has_photo (has_photo is true only if a photo of THAT problem was sent anywhere in the thread).
+If the email contains earlier messages, read the whole thread: fill previous_offers from our team's earlier replies and the customer's reactions; describe the current state of the case. Severity: STRUCTURAL = broken, snapped, cracked, deformed, cannot assemble, mesh/welds/hinges/latches failed so the item no longer does its job; COSMETIC = scratches, dents, color marks only.
 
 Product catalog (names only):
 ${catalogNames()}`;
@@ -105,7 +115,9 @@ You may ONLY use the decisions, options, amounts, dates and product facts provid
 - RESHIP_PARTS: confirm the part codes; tracking number will follow by email.
 - OFFER_PARTS_OR_PARTIAL_REFUND / OFFER_REPLACEMENT_OR_REFUND: list the options side by side; ask the customer to choose. If the customer asked for something else, politely say these are the options available.
 - WARRANTY_PARTS: free warranty replacement part will be sent; confirm the part.
-- QUALITY_ESCALATION: acknowledge this is a repeat problem (use units_affected), say it has been reported to the quality team, then list the options side by side and ask the customer to choose. Never ask the customer to repair it themselves.
+- QUALITY_ESCALATION: acknowledge this is a repeat problem (use units_affected and the component), say it has been reported to the quality team. If "confirmed" is set, confirm that resolution for those units instead of asking; otherwise list the options side by side and ask the customer to choose. Never ask the customer to repair it themselves.
+- "corrections": include each sentence (it corrects something our team said earlier).
+- "do_not_offer": never offer or repeat these; if the customer rejected them, acknowledge briefly that you understand.
 - OUT_OF_WARRANTY: explain it is outside the 12-month warranty; parts can be purchased and a specialist will send a quote. Do not say free.
 - RETURN_ALLOWED: explain the return is accepted, return instructions follow, and the given return fee is deducted from the refund.
 - DECLINE_RETURN: explain politely why the return cannot be accepted (use the reason); do not offer a return label.
@@ -119,7 +131,8 @@ You may ONLY use the decisions, options, amounts, dates and product facts provid
 - ADDRESS_CHANGE_OK: confirm the address change request will be applied. ADDRESS_CHANGE_DENIED: explain the order has already shipped so the address cannot be changed by us.
 - ASK_INFO: ask only for the listed missing information.
 - If a decision has "safety_notice", include that sentence word for word.
-- HANDOFF with reason safety or chargeback_or_dispute: apologize sincerely and say a specialist will contact them as soon as possible. Do NOT mention refunds, compensation, replacement, cause or liability.
+- HANDOFF with reason safety: apologize sincerely and say a specialist will contact them as soon as possible. Do NOT mention refunds, compensation, replacement, cause or liability.
+- HANDOFF with reason chargeback_or_dispute: apologize; acknowledge the customer's specific requests (customer_requests) and key facts (case_facts) in plain words, and the number of messages they had to send if priority is set; say the case has been passed to a specialist as a priority who will contact them. Do NOT promise any outcome, compensation or timeframe.
 - HANDOFF (other reasons): say the case has been passed to a specialist who will follow up; do not give a solution or internal reason.
 </how-to-write>
 <output-format>

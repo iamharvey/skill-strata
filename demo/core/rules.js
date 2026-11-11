@@ -65,10 +65,17 @@ function decideOne(it, ctx) {
     const units = Math.max(Number(it.units_affected) || 1, prior.length + 1);
     if (it.repeat_issue || prior.length) {
       if (order.amount_usd > POLICY.structuralApprovalThresholdUsd) return out(it, "HANDOFF", { reason: "needs_approval" });
+      const st = ctx?.state || {};
+      // 活体动物笼具：先发新品，不要求先拆卸退回
+      const replacement = product?.animal_enclosure
+        ? "replacement from a different batch after a QC check, shipped first (no need to dismantle, return or wait for collection of the old one before the new one arrives)"
+        : "replacement from a different batch after a QC check";
+      let options = [replacement, "full refund"];
+      const confirmed = st.customer_choice === "REPLACEMENT" ? replacement : st.customer_choice === "FULL_REFUND" ? "full refund" : null;
       return out(it, "QUALITY_ESCALATION", {
-        sku: order.sku, product: product?.name, units_affected: units,
+        sku: order.sku, product: product?.name, component: it.component || null, units_affected: units,
         prior_cases: prior.map((h) => `${h.id}: ${h.prior_case}`),
-        options: ["replacement from a different batch after a QC check", "full refund"],
+        ...(confirmed ? { confirmed } : { options }),
         order_qty: order.qty || 1,
         log: { sku: order.sku, defect: "repeat structural failure", orders: [...new Set([resolvedId, ...prior.map((h) => h.id)])] },
       });
@@ -97,7 +104,7 @@ function decideOne(it, ctx) {
     }
     case "DEFECT_WARRANTY": {
       if (sinceDelivery > POLICY.warrantyDays) return out(it, "OUT_OF_WARRANTY", { reason: "over_12_months", note: "Parts can be purchased; a specialist will send a quote." });
-      if (!it.has_photo && !it.has_video) return out(it, "ASK_INFO", { reason: "missing_evidence", ask: ["photo or short video of the issue"] });
+      if (!it.has_photo && !it.has_video) return out(it, "ASK_INFO", { reason: "missing_evidence", ask: [it.component ? `photo or short video of the ${it.component} issue (${it.units_affected || 1} unit(s))` : "photo or short video of the issue"] });
       return out(it, "WARRANTY_PARTS", { note: "Free warranty replacement parts.", product: product.name });
     }
     case "RETURN": {
@@ -135,7 +142,7 @@ function decideOne(it, ctx) {
       return out(it, "PROVIDE_ETA", { status: "delivered", delivered: order.delivered });
     }
     case "NOT_RECEIVED": {
-      if (order.status !== "delivered") return decideOne({ ...it, type: "SHIPPING_STATUS" });
+      if (order.status !== "delivered") return decideOne({ ...it, type: "SHIPPING_STATUS" }, ctx);
       if (sinceDelivery < POLICY.notReceivedWaitDays) return out(it, "WAIT_48H", { delivered_scan: order.delivered, carrier: order.carrier });
       return out(it, "HANDOFF", { reason: "lost_package_case" });
     }
@@ -147,11 +154,46 @@ function decideOne(it, ctx) {
 }
 
 // ctx：系统侧上下文（如渠道信息），不来自模型
+// 对话状态：由抽取结果（我方此前给出的方案、客户的反应与选择）+ 系统计数（客户第几次来信）组成
+export function buildState(facts, ctx = {}) {
+  const offers = Array.isArray(facts?.previous_offers) ? facts.previous_offers : [];
+  const contact_count = (ctx.thread || []).filter((m) => m.role === "customer").length + 1;
+  return {
+    contact_count,
+    priority: contact_count >= 3,
+    customer_choice: facts?.customer_choice || null,
+    rejected: offers.filter((o) => o.status === "REJECTED").map((o) => o.type + (o.pct ? ` ${o.pct}%` : "") + (o.reject_reason ? ` (${o.reject_reason})` : "")),
+    // 是否曾要求客户自行修理：抽取结果 + 对我方历史回复做确定性匹配（模型可能把它并入部分退款）
+    asked_self_repair: offers.some((o) => o.type === "SELF_REPAIR") ||
+      (ctx.thread || []).some((m) => m.role === "agent" && /(source|arrange|find)[^.]{0,30}repair|repair (it|them) yourself|fix (it|them) yourself/i.test(m.body || "")),
+  };
+}
+
+// ctx：系统侧上下文（渠道、对话历史），不来自模型
 export function decide(facts, ctx = {}) {
   if (facts?.safety_risk) return [{ intent: "SAFETY", decision: "HANDOFF", reason: "safety" }];
-  if (facts?.dispute) return [{ intent: "DISPUTE", decision: "HANDOFF", reason: "chargeback_or_dispute" }];
+  const state = buildState(facts, ctx);
   const intents = Array.isArray(facts?.intents) && facts.intents.length ? facts.intents : [{ type: "OTHER" }];
-  const ds = intents.map((it) => decideOne(it, ctx));
-  if (facts?.animal_safety) ds.forEach((d) => (d.safety_notice = ANIMAL_SAFETY_NOTICE));
+  const ds = intents.map((it) => decideOne(it, { ...ctx, state }));
+  const notice = facts?.animal_safety ? { safety_notice: ANIMAL_SAFETY_NOTICE } : {};
+  if (facts?.dispute) {
+    // 纠纷转人工：保留按政策应得的处理（给专员）、客户的具体诉求与安全提醒；回复不承诺结果
+    return [{
+      intent: "DISPUTE", decision: "HANDOFF", reason: "chargeback_or_dispute", dispute_type: facts.dispute_type || null,
+      priority: state.priority, contact_count: state.contact_count,
+      customer_requests: [...new Set([facts.customer_choice, ...intents.map((i) => i.customer_demand)].filter(Boolean).map((x) => String(x).toLowerCase()))],
+      case_facts: intents.filter((i) => i.component || i.units_affected).map((i) => `${i.units_affected || 1} unit(s): ${i.component || i.type}${i.repeat_issue ? " (repeat)" : ""}`),
+      for_specialist: ds,
+      ...notice,
+    }];
+  }
+  for (const d of ds) {
+    Object.assign(d, notice);
+    if (d.decision === "QUALITY_ESCALATION") {
+      if (state.asked_self_repair) d.corrections = ["You do not need to repair it yourself; please disregard that earlier suggestion."];
+      if (state.rejected.length) d.do_not_offer = state.rejected;
+      if (state.priority) d.priority = true;
+    }
+  }
   return ds;
 }

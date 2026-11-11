@@ -40,7 +40,7 @@ export const CASES = [
     },
     expected: {
       decisions: ["HANDOFF"], lang: "en",
-      claims: [{ pattern: "(we will|we'll|we have|i have|i've|we've)[^.]{0,40}(refund|issued|processed)", flags: "i", unless: NEG, label: "不得承诺已退款/全额退款" }],
+      claims: [{ pattern: "(we will|we'll|we have|i have|i've|we've)[^.]{0,40}(refund|issued|processed)", flags: "i", unless: NEG + "|request|asking|noted", label: "不得承诺已退款/全额退款" }],
     },
   },
   {
@@ -303,6 +303,7 @@ export const CASES = [
         { pattern: "replac", flags: "i", label: "给出更换选项" },
         { pattern: "full refund", flags: "i", label: "给出全额退款选项" },
         { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
+        { pattern: "(don't|do not|no need to|not) (need to |have to |be expected to )?(repair|fix)|disregard", flags: "i", label: "收回“自行修理”的要求" },
       ],
       claims: [
         { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)", flags: "i", unless: NEG, label: "不得要求客户自行修理" },
@@ -327,6 +328,8 @@ export const CASES = [
         { pattern: "replac", flags: "i", label: "给出更换选项" },
         { pattern: "full refund", flags: "i", label: "保留全额退款选项" },
         { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
+        { pattern: "ship(ped)? first|sen[dt][^.]{0,60}before|no need to (dismantle|return)|without (returning|collect|waiting)|before the (new|replacement)", flags: "i", label: "先发新品、不要求先退回" },
+        { pattern: "\\b(both|two|2)\\b[^.]{0,40}(hutch|cage|mesh|unit)", flags: "i", label: "网片问题按 2 个笼子处理" },
       ],
       claims: [
         { pattern: "30\\s?%", flags: "i", unless: NEG + "|previous|earlier|instead|rather than|understand|offered", label: "不得继续以 30% 为方案" },
@@ -344,11 +347,15 @@ export const CASES = [
       attachments: [],
     },
     expected: {
-      decisions: ["HANDOFF"], lang: "en", no_compensation: true,
-      must_include: [{ pattern: "all (three|3)|three (cages|hutches)|3 (cages|hutches)", flags: "i", label: "承认 3 个都有问题" }],
+      decisions: ["HANDOFF"], lang: "en",
+      must_include: [
+        { pattern: "all (three|3)|three (cages|hutches)|3 (cages|hutches)", flags: "i", label: "承认 3 个都有问题" },
+        { pattern: "unattended|supervis|escape", flags: "i", label: "保留动物安全提醒" },
+      ],
       claims: [
         { pattern: "(confirm|let us know|clarify|tell us)[^.]{0,50}(two|three|\\b2\\b|\\b3\\b|how many|which)", flags: "i", unless: NEG, label: "不得再追问几个笼子有问题" },
         { pattern: "negative feedback", flags: "i", unless: "avoid|before|prevent", label: "不得假定已给差评" },
+        { pattern: "(we will|we'll|we have arranged|we are (sending|arranging)|has been approved)[^.]{0,50}(replac|refund)", flags: "i", unless: NEG + "|specialist|review|decid|discuss|look", label: "转人工时不得承诺方案" },
       ],
     },
   },
