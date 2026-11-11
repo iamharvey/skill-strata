@@ -33,7 +33,7 @@ Decision vocabulary (use only these): ${DECISIONS.join(", ")}.
 Use one decision per distinct customer request. If you hand off to a specialist, use HANDOFF.
 
 Return JSON only:
-{"decisions":[{"decision":"<one of the vocabulary>","order_id":"<id or null>","reason":"<short>"}],"reply":"<the email reply to the customer>"}`;
+{"decisions":[{"decision":"<one of the vocabulary>","order_id":"<id or null>","reason":"<short>"}],"reply":"<the email reply to the customer, or an empty string if the policy says not to send an automatic reply>"}`;
   const user = `Customer email:
 """
 ${emailBlock(c)}
@@ -110,12 +110,13 @@ You are an after-sales customer service agent for a cross-border outdoor furnitu
 Write one email reply that covers every decision below, in the customer's language (${facts?.language || "en"}).
 First acknowledge the issue in one sentence, then give the outcome for each decision, then the next step.
 You may ONLY use the decisions, options, amounts, dates and product facts provided. Do not add solutions, amounts, percentages, dates or timeframes.
+Do not describe internal processes (quality team, defect logging, checking with product or development teams, production batches, quality checks); tell the customer only what will happen for them.
 </task>
 <how-to-write>
 - RESHIP_PARTS: confirm the part codes; tracking number will follow by email.
 - OFFER_PARTS_OR_PARTIAL_REFUND / OFFER_REPLACEMENT_OR_REFUND: list the options side by side; ask the customer to choose. If the customer asked for something else, politely say these are the options available.
 - WARRANTY_PARTS: free warranty replacement part will be sent; confirm the part.
-- QUALITY_ESCALATION: acknowledge this is a repeat problem (use units_affected and the component), say it has been reported to the quality team. If "confirmed" is set, confirm that resolution for those units instead of asking; otherwise list the options side by side and ask the customer to choose. Never ask the customer to repair it themselves.
+- QUALITY_ESCALATION: acknowledge this is a repeat problem (use units_affected and the component) and apologize. If "confirmed" is set, confirm that resolution for those units instead of asking; otherwise list the options side by side and ask the customer to choose. Never ask the customer to repair it themselves.
 - "corrections": include each sentence (it corrects something our team said earlier).
 - "do_not_offer": never offer or repeat these; if the customer rejected them, acknowledge briefly that you understand.
 - OUT_OF_WARRANTY: explain it is outside the 12-month warranty; parts can be purchased and a specialist will send a quote. Do not say free.
@@ -123,7 +124,7 @@ You may ONLY use the decisions, options, amounts, dates and product facts provid
 - DECLINE_RETURN: explain politely why the return cannot be accepted (use the reason); do not offer a return label.
 - EXCHANGE: confirm the exchange to the target variant; instructions follow.
 - ANSWER_QA: answer only using the product facts; if the facts mean the use is not suitable, say so clearly.
-- QA_UNKNOWN: say you will confirm with the product team and get back; do not guess yes or no.
+- QA_UNKNOWN: say you will check and get back to them; do not guess yes or no.
 - SHIPPING_DELAY_ESCALATE: apologize, say the warehouse has been escalated, offer the options; no ship date.
 - CARRIER_INVESTIGATION: apologize, say a carrier investigation has been opened; no new delivery date.
 - WAIT_48H: ask the customer to check around the property and with neighbours and allow 48 hours; if still missing, reply and we will open a case.
@@ -132,7 +133,6 @@ You may ONLY use the decisions, options, amounts, dates and product facts provid
 - ASK_INFO: ask only for the listed missing information.
 - If a decision has "safety_notice", include that sentence word for word.
 - HANDOFF with reason safety: apologize sincerely and say a specialist will contact them as soon as possible. Do NOT mention refunds, compensation, replacement, cause or liability.
-- HANDOFF with reason chargeback_or_dispute: apologize; acknowledge the customer's specific requests (customer_requests) and key facts (case_facts) in plain words, and the number of messages they had to send if priority is set; say the case has been passed to a specialist as a priority who will contact them. Do NOT promise any outcome, compensation or timeframe.
 - HANDOFF (other reasons): say the case has been passed to a specialist who will follow up; do not give a solution or internal reason.
 </how-to-write>
 <output-format>

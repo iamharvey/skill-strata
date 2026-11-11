@@ -68,8 +68,8 @@ function decideOne(it, ctx) {
       const st = ctx?.state || {};
       // 活体动物笼具：先发新品，不要求先拆卸退回
       const replacement = product?.animal_enclosure
-        ? "replacement from a different batch after a QC check, shipped first (no need to dismantle, return or wait for collection of the old one before the new one arrives)"
-        : "replacement from a different batch after a QC check";
+        ? "replacement, shipped first (no need to dismantle, return or wait for collection of the old one before the new one arrives)"
+        : "replacement";
       let options = [replacement, "full refund"];
       const confirmed = st.customer_choice === "REPLACEMENT" ? replacement : st.customer_choice === "FULL_REFUND" ? "full refund" : null;
       return out(it, "QUALITY_ESCALATION", {
@@ -77,7 +77,7 @@ function decideOne(it, ctx) {
         prior_cases: prior.map((h) => `${h.id}: ${h.prior_case}`),
         ...(confirmed ? { confirmed } : { options }),
         order_qty: order.qty || 1,
-        log: { sku: order.sku, defect: "repeat structural failure", orders: [...new Set([resolvedId, ...prior.map((h) => h.id)])] },
+        internal_log: { sku: order.sku, defect: "repeat structural failure", orders: [...new Set([resolvedId, ...prior.map((h) => h.id)])] },
       });
     }
   }
@@ -177,9 +177,9 @@ export function decide(facts, ctx = {}) {
   const ds = intents.map((it) => decideOne(it, { ...ctx, state }));
   const notice = facts?.animal_safety ? { safety_notice: ANIMAL_SAFETY_NOTICE } : {};
   if (facts?.dispute) {
-    // 纠纷转人工：保留按政策应得的处理（给专员）、客户的具体诉求与安全提醒；回复不承诺结果
+    // 纠纷：直接转人工、不自动回复；把客户诉求、案件事实、按政策应得的处理和安全提醒整理成交接单给人工
     return [{
-      intent: "DISPUTE", decision: "HANDOFF", reason: "chargeback_or_dispute", dispute_type: facts.dispute_type || null,
+      intent: "DISPUTE", decision: "HANDOFF", reason: "chargeback_or_dispute", no_reply: true, dispute_type: facts.dispute_type || null,
       priority: state.priority, contact_count: state.contact_count,
       customer_requests: [...new Set([facts.customer_choice, ...intents.map((i) => i.customer_demand)].filter(Boolean).map((x) => String(x).toLowerCase()))],
       case_facts: intents.filter((i) => i.component || i.units_affected).map((i) => `${i.units_affected || 1} unit(s): ${i.component || i.type}${i.repeat_issue ? " (repeat)" : ""}`),

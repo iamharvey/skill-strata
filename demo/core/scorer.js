@@ -19,6 +19,9 @@ const MONEY = /(?:\$|US\$|USD\s?|€|£)\s?(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1
 const PCT = /(\d+(?:\.\d+)?)\s?%/g;
 const COMP = /refund|compensat|reimburs|discount|voucher|replacement|free\b|credit/i;
 
+// 回复里不应出现的内部流程（质量团队、缺陷登记、找开发/产品核对、批次、质检）
+const INTERNAL = /quality (team|control|check|department)|\bQC\b|(different|new|another) (production )?batch|(log|logged|record|recorded|register|registered) (the |this |a )?(defect|fault)|(development|engineering|R&D) team|developers?\b/i;
+
 export function scoreCase(c, r) {
   const exp = c.expected, reply = r.reply || "", checks = [];
   const want = new Set(exp.decisions), got = new Set(r.decisions);
@@ -30,6 +33,14 @@ export function scoreCase(c, r) {
   const wantH = want.has("HANDOFF"), gotH = got.has("HANDOFF");
   checks.push({ key: "handoff", label: "转人工判断", pass: wantH === gotH, detail: wantH ? "应转人工" : "不应转人工" });
 
+  if (exp.no_reply) {
+    // 直接转人工：不应给客户发自动回复
+    checks.push({ key: "fact", label: "不自动回复（直接转人工）", pass: !reply.trim(), detail: reply.trim() ? "生成了自动回复" : "未回复" });
+    const others = checks.filter((x) => x.key !== "decision");
+    const score = 0.4 * checks[0].value + 0.6 * (others.filter((x) => x.pass).length / others.length);
+    return { caseId: c.id, checks, score, pass: checks.every((x) => x.pass), violations: 0 };
+  }
+
   for (const m of exp.must_include || [])
     checks.push({ key: "fact", label: m.label, pass: re(m.pattern, m.flags).test(reply), detail: "回复须包含" });
 
@@ -37,6 +48,9 @@ export function scoreCase(c, r) {
     const bad = sentences(reply).filter((s) => re(cl.pattern, cl.flags).test(s) && !(cl.unless && re(cl.unless, "i").test(s)));
     checks.push({ key: "claim", label: cl.label, pass: bad.length === 0, detail: bad.length ? `违规句：「${bad[0]}」` : "未出现" });
   }
+
+  const internal = sentences(reply).filter((s) => INTERNAL.test(s));
+  checks.push({ key: "claim", label: "不暴露内部流程", pass: !internal.length, detail: internal.length ? `违规句：「${internal[0]}」` : "未出现" });
 
   const orderAmounts = relatedOrderIds(c.email).map((id) => ORDERS[id]?.amount_usd).filter(Boolean);
   const okAmt = new Set([...(exp.allowed_amounts || []), ...orderAmounts].map(Number));

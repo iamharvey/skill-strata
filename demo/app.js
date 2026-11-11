@@ -12,6 +12,21 @@ const CATS = ["全部", ...new Set(CASES.map((c) => c.category))];
 const state = { runs: [], cur: -1, provider: "openai", cfg: {}, cat: "全部", running: false, stop: false };
 
 // ---------- 结果集 ----------
+// 直接转人工时，给人工客服的交接单（来自规则层，不经过模型）
+function handoffNote(r) {
+  const d = (r.detail || []).find((x) => x.no_reply);
+  if (!d) return "";
+  const rows = [
+    ["优先级", d.priority ? `高（客户第 ${d.contact_count} 次来信）` : "普通"],
+    ["纠纷类型", d.dispute_type || "—"],
+    ["客户诉求", (d.customer_requests || []).join("；") || "—"],
+    ["案件事实", (d.case_facts || []).join("；") || "—"],
+    ["按政策可给", (d.for_specialist || []).map((x) => `${x.decision}${x.confirmed ? "：" + x.confirmed : x.options ? "：" + x.options.join(" / ") : x.ask ? "：补问 " + x.ask.join("、") : ""}`).join("；") || "—"],
+    ["安全提醒", d.safety_notice || "—"],
+  ];
+  return `<h4>交接单（给人工）</h4><table class="note">${rows.map(([k, v]) => `<tr><th>${k}</th><td>${esc(v)}</td></tr>`).join("")}</table>`;
+}
+
 function buildRun(meta, results) {
   const rescored = results.map((r) => (r.error ? { ...r, score: errorScore(r.caseId, r.error) } : { ...r, score: scoreCase(CASES.find((c) => c.id === r.caseId), r) }));
   const summary = {};
@@ -182,7 +197,7 @@ function colBlock(m, r) {
     <h3><span>${MODES[m]}</span><span>${(r.score.score * 100).toFixed(0)} 分</span></h3>
     <h4>决策</h4><div class="chips">${r.decisions.map((d) => `<span class="chip">${esc(d)}</span>`).join("") || "<span class='hint'>无</span>"}</div>
     ${m === "skill" && r.facts ? `<h4>L3 抽取的事实</h4><pre>${esc(JSON.stringify(r.facts, null, 2))}</pre>` : ""}
-    <h4>回复</h4><div class="reply">${esc(r.reply)}</div>
+    <h4>回复</h4><div class="reply">${r.reply ? esc(r.reply) : "（不自动回复，已直接转人工）"}</div>${handoffNote(r)}
     <h4>检查项</h4>
     <ul class="checks">${r.score.checks.map((x) => `<li class="${x.pass ? "ok" : "bad"}"><span class="ic">${x.pass ? "✓" : "✗"}</span><span>${esc(x.label)}<div class="det">${esc(x.detail)}</div></span></li>`).join("")}</ul>
     ${traceBlock(r)}
@@ -238,7 +253,7 @@ renderFields();
 renderRunSelect();
 render();
 // 内置结果：第一个为默认展示
-for (const f of ["claude_haiku_5_5.js", "gpt5_nano.js", "perplexity-agent.js"]) {
+for (const f of ["perplexity-agent.js", "gpt5_nano.js", "claude_haiku_5_5.js"]) {
   try {
     const preset = (await import(`./runs/${f}`)).default;
     state.runs.unshift(buildRun(preset.meta, preset.results));

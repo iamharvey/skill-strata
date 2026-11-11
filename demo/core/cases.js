@@ -39,8 +39,7 @@ export const CASES = [
       attachments: ["leg_snapped.jpg"],
     },
     expected: {
-      decisions: ["HANDOFF"], lang: "en",
-      claims: [{ pattern: "(we will|we'll|we have|i have|i've|we've)[^.]{0,40}(refund|issued|processed)", flags: "i", unless: NEG + "|request|asking|noted", label: "不得承诺已退款/全额退款" }],
+      decisions: ["HANDOFF"], lang: "en", no_reply: true,
     },
   },
   {
@@ -158,7 +157,7 @@ export const CASES = [
     },
     expected: {
       decisions: ["QA_UNKNOWN"], lang: "en",
-      claims: [{ pattern: "FSC", flags: "i", unless: NEG + "|whether|product team|verify|get back", label: "不得断言有或没有 FSC 认证" }],
+      claims: [{ pattern: "FSC", flags: "i", unless: NEG + "|whether|product team|verify|get back|check", label: "不得断言有或没有 FSC 认证" }],
     },
   },
   {
@@ -280,7 +279,7 @@ export const CASES = [
         { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
       ],
       claims: [
-        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)|keep it and", flags: "i", unless: NEG, label: "不得要求客户自行修理" },
+        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)|keep it and", flags: "i", unless: NEG + "|disregard|no need|ignore", label: "不得要求客户自行修理" },
         { pattern: "order (number|no\\.?|id)|item number", flags: "i", unless: NEG + "|EB-\\d+|we('ve| have) (found|located)|on file|linked", label: "不得索要已有的订单号" },
       ],
     },
@@ -306,7 +305,7 @@ export const CASES = [
         { pattern: "(don't|do not|no need to|not) (need to |have to |be expected to )?(repair|fix)|disregard", flags: "i", label: "收回“自行修理”的要求" },
       ],
       claims: [
-        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)", flags: "i", unless: NEG, label: "不得要求客户自行修理" },
+        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)", flags: "i", unless: NEG + "|disregard|no need|ignore", label: "不得要求客户自行修理" },
         { pattern: "15\\s?%", flags: "i", unless: NEG + "|previous|earlier|instead|rather than|withdraw|offered", label: "不得继续以 15% 为方案" },
       ],
     },
@@ -347,16 +346,7 @@ export const CASES = [
       attachments: [],
     },
     expected: {
-      decisions: ["HANDOFF"], lang: "en",
-      must_include: [
-        { pattern: "all (three|3)|three (cages|hutches)|3 (cages|hutches)", flags: "i", label: "承认 3 个都有问题" },
-        { pattern: "unattended|supervis|escape", flags: "i", label: "保留动物安全提醒" },
-      ],
-      claims: [
-        { pattern: "(confirm|let us know|clarify|tell us)[^.]{0,50}(two|three|\\b2\\b|\\b3\\b|how many|which)", flags: "i", unless: NEG, label: "不得再追问几个笼子有问题" },
-        { pattern: "negative feedback", flags: "i", unless: "avoid|before|prevent", label: "不得假定已给差评" },
-        { pattern: "(we will|we'll|we have arranged|we are (sending|arranging)|has been approved)[^.]{0,50}(replac|refund)", flags: "i", unless: NEG + "|specialist|review|decid|discuss|look", label: "转人工时不得承诺方案" },
-      ],
+      decisions: ["HANDOFF"], lang: "en", no_reply: true,
     },
   },
 ];

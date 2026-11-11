@@ -3,7 +3,7 @@ export default {
   "provider": "perplexity-agent",
   "model": "Perplexity Computer agent",
   "label": "Perplexity Agent 运行 v4 · 2026-11-11（24 例，多轮改进）",
-  "note": "由 Perplexity Computer 子 agent 充当模型、单次运行；C22–C24 的新增检查项与 Skill 修改均在看到 v3 结果后做出，这 3 例不再是独立证据；C03 评分器“承诺退款”规则误报（把“已记录您的退款请求”判为承诺）已修正，两种模式同样适用。",
+  "note": "【v4 Skill 的结果，页面按当前（v5）评分标准重新计分：C03/C24 应直接转人工不回复、回复不得提及质量团队等内部流程，因此分数低于当时记录】由 Perplexity Computer 子 agent 充当模型、单次运行；C22–C24 的新增检查项与 Skill 修改均在看到 v3 结果后做出，这 3 例不再是独立证据；C03 评分器“承诺退款”规则误报（把“已记录您的退款请求”判为承诺）已修正，两种模式同样适用。",
   "created": "2026-11-11T09:13:59.794Z",
   "cases": 24
  },

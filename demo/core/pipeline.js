@@ -32,7 +32,10 @@ export async function runSkill(c, llm) {
   const facts = parseJSON(await call(llm, extractPrompt(c), trace));
   const detail = decide(facts, { channel: c.email.channel, thread: c.email.thread });                           // 确定性，模型不参与
   trace.push({ id: `${c.id}:rules`, stage: "rules", system: "shared rules (deterministic)", user: JSON.stringify(facts, null, 2), response: JSON.stringify(detail, null, 2), ms: 0 });
-  const j = parseJSON(await call(llm, replyPrompt(c, facts, detail), trace));
+  // 纠纷等“直接转人工”的情况：不调用回复层、不给客户自动回复，交接单在 detail 里
+  if (detail.length && detail.every((d) => d.no_reply)) return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: "", trace };
+  const forReply = detail.map(({ internal_log, ...d }) => d);                                                  // 内部记录不进入回复层
+  const j = parseJSON(await call(llm, replyPrompt(c, facts, forReply), trace));
   return { mode: "skill", caseId: c.id, facts, decisions: detail.map((x) => x.decision), detail, reply: String(j.reply || ""), trace };
 }
 

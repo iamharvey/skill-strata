@@ -35,9 +35,11 @@ let bad = 0;
   const q = d23.find((d) => d.decision === "QUALITY_ESCALATION");
   if (!q?.options?.[0]?.includes("shipped first")) { bad++; console.log("✗ 笼具换货应先发"); }
   if (!q?.corrections?.length || !q?.do_not_offer?.length || !q.priority) { bad++; console.log("✗ 多轮状态未生效", JSON.stringify(q)); }
+  if (/batch|QC/i.test(JSON.stringify(q?.options))) { bad++; console.log("✗ 选项不应承诺批次/质检"); }
   if (q?.units_affected !== 2) { bad++; console.log("✗ 网片问题件数应为 2"); }
   const d24 = decide(GOLD.C24, { channel: c24.email.channel, thread: c24.email.thread })[0];
-  if (!d24.safety_notice || !d24.customer_requests.length || !d24.for_specialist?.[0]?.confirmed) { bad++; console.log("✗ 纠纷转人工未保留事实/安全提醒", JSON.stringify(d24)); } }
+  if (!d24.safety_notice || !d24.customer_requests.length || !d24.for_specialist?.[0]?.confirmed) { bad++; console.log("✗ 纠纷转人工未保留事实/安全提醒", JSON.stringify(d24)); }
+  if (!d24.no_reply) { bad++; console.log("✗ 纠纷应直接转人工、不自动回复"); } }
 { const c21 = CASES.find((c) => c.id === "C21");
   const d = decide({ intents: [I({ type: "DEFECT_WARRANTY", severity: "STRUCTURAL", has_photo: true })] }, { channel: c21.email.channel });
   if (d[0].decision !== "QUALITY_ESCALATION") { bad++; console.log("✗ C21 未凭系统记录识别重复", d[0].decision); } }
