@@ -9,6 +9,13 @@
 
 > 订单、商品、政策均为示意数据。
 
+## Skill 文档
+
+当前版本（v8）的 Skill 内容按层整理在 [`skills/`](skills/)：
+
+- [客服Skill分层内容.md](skills/客服Skill分层内容.md)：L1 SKILL.md 入口、L3 抽取结构与提示词、L2 回复写法与提示词、24 个用例分工、售后政策 19 条。
+- [客服Skill规则伪代码.md](skills/客服Skill规则伪代码.md)：L4 守卫（证据校验、人工兜底）与 L5 决策规则的伪代码，以及 24 个用例的规则路径。
+
 ## 打开方式
 
 页面使用 ES Module，需要通过 HTTP 打开（不能直接双击 `file://`）：
@@ -302,5 +309,6 @@ demo/
 ├── tools/
 │   ├── runner.mjs    # 命令行跑分与 agent 分步模式
 │   └── selftest.mjs  # 自检：理想抽取结果下 24 个用例的期望决策均可达
+├── skills/           # 分层 Skill 内容与规则伪代码（MD）
 └── runs/             # 运行结果
 ```
