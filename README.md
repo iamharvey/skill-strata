@@ -58,7 +58,7 @@ flowchart LR
 
 ## 在线评测 Demo
 
-[`demo/`](demo/) 是一个网页评测台：21 封客服邮件（售后、退换货、产品 QA、物流时效、多意图，含 1 封匿名真实工单），对比“单提示基线”和“分层 Skill”两种做法。可接入任意 OpenAI 兼容 API、Anthropic API，或通过本地桥接调用 Claude Code、Codex、Ollama 等 CLI。详见 [demo/README.md](demo/README.md)。
+[`demo/`](demo/) 是一个网页评测台：24 封客服邮件（售后、退换货、产品 QA、物流时效、多意图，含 1 个匿名真实工单的 4 轮对话），对比“单提示基线”和“分层 Skill”两种做法。可接入任意 OpenAI 兼容 API、Anthropic API，或通过本地桥接调用 Claude Code、Codex、Ollama 等 CLI。详见 [demo/README.md](demo/README.md)。
 
 ## 快速开始
 
@@ -94,7 +94,7 @@ skill-strata/
 │   ├── domain.yml
 │   └── actions/actions.py
 ├── tests/{test_rules.py, cases.yaml}
-├── demo/                                # 网页评测台（21 个邮件用例）
+├── demo/                                # 网页评测台（24 个邮件用例）
 └── docs/walkthrough.md                  # 完整讲解文档
 ```
 

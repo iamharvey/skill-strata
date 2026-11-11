@@ -144,14 +144,12 @@ export const ORDERS = {
   "AS-10240": { sku: "GB-03", amount_usd: 95, order_date: "2026-11-03", status: "in_transit", carrier: "UPS", eta: "2026-11-12", last_scan: "2026-11-08 Columbus OH", country: "US" },
   "AS-10230": { sku: "SW-01", amount_usd: 279, order_date: "2026-10-28", status: "delivered", delivered: "2026-11-06", country: "US" },
   // 平台订单（eBay）：由系统按 平台 + 买家 + 商品号 从消息线程关联，不需要客户提供
-  "EB-58201": { sku: "D51-105V01", amount_usd: 86, order_date: "2026-09-12", status: "delivered", delivered: "2026-09-17", country: "UK", channel: "ebay", prior_case: "TK-UK-20260929-000731 (mesh weld failure)" },
-  "EB-61377": { sku: "D51-105V01", amount_usd: 86, order_date: "2026-10-09", status: "delivered", delivered: "2026-10-14", country: "UK", channel: "ebay" },
+  "EB-58201": { sku: "D51-105V01", qty: 3, amount_usd: 258, order_date: "2026-09-12", status: "delivered", delivered: "2026-09-17", country: "UK", channel: "ebay", prior_case: "TK-UK-20260929-000731: cage 1 of 3, mesh weld failure" },
 };
 
 // 平台消息线程 → 订单。实际系统通过平台 API 完成，这里用表模拟。
 export const MARKETPLACE_ORDERS = [
   { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001", order_id: "EB-58201" },
-  { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001", order_id: "EB-61377" },
 ];
 
 // 按渠道信息查订单（确定性，不经过模型）。返回该买家在该商品下的全部订单，最新在前。

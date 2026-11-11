@@ -60,7 +60,8 @@ function decideOne(it, ctx) {
 
   // 重复结构性缺陷：客户说明是第 2 件起，或系统记录显示同 SKU 有过同类工单
   if (["DAMAGE", "DEFECT_WARRANTY"].includes(it.type) && it.severity === "STRUCTURAL") {
-    const prior = history.filter((h) => h.sku === order.sku && h.prior_case);
+    // 同类工单记录：同一订单（一单多件）或同买家其他订单
+    const prior = [...(order.prior_case ? [{ id: resolvedId, ...order }] : []), ...history.filter((h) => h.sku === order.sku && h.prior_case)];
     const units = Math.max(Number(it.units_affected) || 1, prior.length + 1);
     if (it.repeat_issue || prior.length) {
       if (order.amount_usd > POLICY.structuralApprovalThresholdUsd) return out(it, "HANDOFF", { reason: "needs_approval" });
@@ -68,7 +69,8 @@ function decideOne(it, ctx) {
         sku: order.sku, product: product?.name, units_affected: units,
         prior_cases: prior.map((h) => `${h.id}: ${h.prior_case}`),
         options: ["replacement from a different batch after a QC check", "full refund"],
-        log: { sku: order.sku, defect: "repeat structural failure", orders: [resolvedId, ...prior.map((h) => h.id)] },
+        order_qty: order.qty || 1,
+        log: { sku: order.sku, defect: "repeat structural failure", orders: [...new Set([resolvedId, ...prior.map((h) => h.id)])] },
       });
     }
   }

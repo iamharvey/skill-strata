@@ -285,4 +285,71 @@ export const CASES = [
       ],
     },
   },
+  // ---- C21 的后续轮次（真实对话，匿名）。thread = 到上一轮为止的往来，含人工客服实际发出的回复 ----
+  {
+    id: "C22", category: "多轮", title: "C21 第 2 轮：买了 3 个、第 2 次出问题、雪貂差点跑出", difficulty: "难", source: "real",
+    email: {
+      from: "buyer-7f3a (eBay)",
+      channel: { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001" },
+      subject: "Re: Wooden Rabbit Hutch Bunny Cage Outdoor Small Animal House w/ Hinged Top #360000000001 (SKU D51-105V01)",
+      thread: [{"role": "customer", "body": "2nd cage thats gone think you need to use better mesh not cheap stuff, the 2nd photo with purple tube in is the 1st cage I completed about.", "image_notes": ["Front welded-wire mesh door of a wooden hutch. A horizontal wire has broken free from its welds and hangs loose across the panel. A ferret is inside.", "Front mesh door of a second, identical hutch with a purple tunnel inside. Several vertical wires on the left side have come away from the welds and are bent. A ferret is inside."]}, {"role": "agent", "body": "Dear Customer,\n\nSorry for the inconvenience.\n\nI am sorry that this issue has arisen. I have tried to search for spare parts in our warehouse, however, as this is new stock we've no spare parts available and nor do we stock this at the warehouse which we operate from.\n\nCan I ask if you would be willing to keep it and possibly source a repair or resolution option at your end? As if you could, we would be happy to offer a 15% partial refund to cover the cost for one item.\n\nPlease let us know how you wish to proceed.\n\nKind regards,\n[Agent A]"}],
+      body: "That's ok but this isn't good enough to happen the second time I bought 3 cages from ya self and it was alot of money this really need looking as as you trust the itam to be worth the money it is just a good job my ferret hasn't been able to get out",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["QUALITY_ESCALATION"], lang: "en", allowed_pct: [15],
+      must_include: [
+        { pattern: "three|\\b3\\b", flags: "i", label: "承认买了 3 个" },
+        { pattern: "replac", flags: "i", label: "给出更换选项" },
+        { pattern: "full refund", flags: "i", label: "给出全额退款选项" },
+        { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
+      ],
+      claims: [
+        { pattern: "(source|arrange|find)[^.]{0,30}repair|repair[^.]{0,20}(yourself|at your end|locally)", flags: "i", unless: NEG, label: "不得要求客户自行修理" },
+        { pattern: "15\\s?%", flags: "i", unless: NEG + "|previous|earlier|instead|rather than|withdraw|offered", label: "不得继续以 15% 为方案" },
+      ],
+    },
+  },
+  {
+    id: "C23", category: "多轮", title: "C21 第 3 轮：取件换货不可行、托盘全部生锈、30% 不够", difficulty: "难", source: "real",
+    email: {
+      from: "buyer-7f3a (eBay)",
+      channel: { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001" },
+      subject: "Re: Wooden Rabbit Hutch Bunny Cage Outdoor Small Animal House w/ Hinged Top #360000000001 (SKU D51-105V01)",
+      thread: [{"role": "customer", "body": "2nd cage thats gone think you need to use better mesh not cheap stuff, the 2nd photo with purple tube in is the 1st cage I completed about.", "image_notes": ["Front welded-wire mesh door of a wooden hutch. A horizontal wire has broken free from its welds and hangs loose across the panel. A ferret is inside.", "Front mesh door of a second, identical hutch with a purple tunnel inside. Several vertical wires on the left side have come away from the welds and are bent. A ferret is inside."]}, {"role": "agent", "body": "Dear Customer,\n\nSorry for the inconvenience.\n\nI am sorry that this issue has arisen. I have tried to search for spare parts in our warehouse, however, as this is new stock we've no spare parts available and nor do we stock this at the warehouse which we operate from.\n\nCan I ask if you would be willing to keep it and possibly source a repair or resolution option at your end? As if you could, we would be happy to offer a 15% partial refund to cover the cost for one item.\n\nPlease let us know how you wish to proceed.\n\nKind regards,\n[Agent A]"}, {"role": "customer", "body": "That's ok but this isn't good enough to happen the second time I bought 3 cages from ya self and it was alot of money this really need looking as as you trust the itam to be worth the money it is just a good job my ferret hasn't been able to get out"}, {"role": "agent", "body": "Dear Customer,\nThank you for your message.\nWe have two resolutions we would like to put forward to you to resolve this issue please let us know which one is best for you.\n- Partial Refund: A 30% partial refund for the item to cover the inconvenience caused if you are happy to keep as it is and without any further assistance.\nor\n-We may opt to arrange a collection and a full replacement.\nCollection requires the items to be fully dismantled and packed in a box with all parts included.\nWe would also require you to select a full working day between 08.00-18.00 for the collection of your item.\nPlease note that a collection and replacement will not be on the same day as we use different couriers for each service.\nOnce again I would like to apologise for the inconvenience and we hope to hear from you soon.\nBest Regards,\n[Agent B]"}],
+      body: "Wel the second one isn't no good as where am I ment to keep my ferrets while I wait for the new ones and all the metal trays have all gone rusty aswell now this is no good as I haven't had them that long and 30% for what they are like and the money im going to have to spend on new cages as I cant rely on these to keep my ferrets safe or get out i really didn't expect this to happen if I new this I wouldn't of bought them if it was just 1 cage wouldn't have been so bad but 3 cages is alot of money for this to happen too",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["QUALITY_ESCALATION", "ASK_INFO"], lang: "en", allowed_pct: [30],
+      must_include: [
+        { pattern: "rust|tray", flags: "i", label: "回应托盘生锈" },
+        { pattern: "replac", flags: "i", label: "给出更换选项" },
+        { pattern: "full refund", flags: "i", label: "保留全额退款选项" },
+        { pattern: "unattended|supervis|escape", flags: "i", label: "提醒动物安全" },
+      ],
+      claims: [
+        { pattern: "30\\s?%", flags: "i", unless: NEG + "|previous|earlier|instead|rather than|understand|offered", label: "不得继续以 30% 为方案" },
+      ],
+    },
+  },
+  {
+    id: "C24", category: "多轮", title: "C21 第 4 轮：3 个都有问题、要求全换、威胁去 eBay", difficulty: "难", source: "real",
+    email: {
+      from: "buyer-7f3a (eBay)",
+      channel: { platform: "ebay", buyer: "buyer-7f3a", item_id: "360000000001" },
+      subject: "Re: Wooden Rabbit Hutch Bunny Cage Outdoor Small Animal House w/ Hinged Top #360000000001 (SKU D51-105V01)",
+      thread: [{"role": "customer", "body": "2nd cage thats gone think you need to use better mesh not cheap stuff, the 2nd photo with purple tube in is the 1st cage I completed about.", "image_notes": ["Front welded-wire mesh door of a wooden hutch. A horizontal wire has broken free from its welds and hangs loose across the panel. A ferret is inside.", "Front mesh door of a second, identical hutch with a purple tunnel inside. Several vertical wires on the left side have come away from the welds and are bent. A ferret is inside."]}, {"role": "agent", "body": "Dear Customer,\n\nSorry for the inconvenience.\n\nI am sorry that this issue has arisen. I have tried to search for spare parts in our warehouse, however, as this is new stock we've no spare parts available and nor do we stock this at the warehouse which we operate from.\n\nCan I ask if you would be willing to keep it and possibly source a repair or resolution option at your end? As if you could, we would be happy to offer a 15% partial refund to cover the cost for one item.\n\nPlease let us know how you wish to proceed.\n\nKind regards,\n[Agent A]"}, {"role": "customer", "body": "That's ok but this isn't good enough to happen the second time I bought 3 cages from ya self and it was alot of money this really need looking as as you trust the itam to be worth the money it is just a good job my ferret hasn't been able to get out"}, {"role": "agent", "body": "Dear Customer,\nThank you for your message.\nWe have two resolutions we would like to put forward to you to resolve this issue please let us know which one is best for you.\n- Partial Refund: A 30% partial refund for the item to cover the inconvenience caused if you are happy to keep as it is and without any further assistance.\nor\n-We may opt to arrange a collection and a full replacement.\nCollection requires the items to be fully dismantled and packed in a box with all parts included.\nWe would also require you to select a full working day between 08.00-18.00 for the collection of your item.\nPlease note that a collection and replacement will not be on the same day as we use different couriers for each service.\nOnce again I would like to apologise for the inconvenience and we hope to hear from you soon.\nBest Regards,\n[Agent B]"}, {"role": "customer", "body": "Wel the second one isn't no good as where am I ment to keep my ferrets while I wait for the new ones and all the metal trays have all gone rusty aswell now this is no good as I haven't had them that long and 30% for what they are like and the money im going to have to spend on new cages as I cant rely on these to keep my ferrets safe or get out i really didn't expect this to happen if I new this I wouldn't of bought them if it was just 1 cage wouldn't have been so bad but 3 cages is alot of money for this to happen too"}, {"role": "agent", "body": "Dear Customer,\n\nThanks for your message. We are sorry for the inconvenience caused.\n\nConsidering the situation of your item, as we do not want to inconvenience you any further, we would like to send out a full replacement of one item for you without the collection of original item. Please note, delivery can take 3-5 working days to arrive from date of input.\n\nIn order for us to proceed, please respond to this message confirming your acceptance of the above.\n\nKind regards,\n[Agent C]"}],
+      body: "All 3 cages have all got something wrong with them thank u for the offer of 1 but we need all 3 replacement this isn't good enough I shouldn't have to be sending all these messages I will be going.to ebay them.self if this doesn't get sorted ASAP",
+      attachments: [],
+    },
+    expected: {
+      decisions: ["HANDOFF"], lang: "en", no_compensation: true,
+      must_include: [{ pattern: "all (three|3)|three (cages|hutches)|3 (cages|hutches)", flags: "i", label: "承认 3 个都有问题" }],
+      claims: [
+        { pattern: "(confirm|let us know|clarify|tell us)[^.]{0,50}(two|three|\\b2\\b|\\b3\\b|how many|which)", flags: "i", unless: NEG, label: "不得再追问几个笼子有问题" },
+        { pattern: "negative feedback", flags: "i", unless: "avoid|before|prevent", label: "不得假定已给差评" },
+      ],
+    },
+  },
 ];
